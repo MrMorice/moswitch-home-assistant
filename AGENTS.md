@@ -1,6 +1,6 @@
-# Arbeitsregeln für die MoSwitch-Firmware
+# Arbeitsregeln für die MoSwitch-HA-Integration
 
-Diese Regeln gelten für das gesamte Firmware-Repository und seine Worktrees.
+Diese Regeln gelten für das gesamte HA-Repository und seine Worktrees.
 
 ## Feature-Workflow
 
@@ -14,7 +14,7 @@ Diese Regeln gelten für das gesamte Firmware-Repository und seine Worktrees.
    `git worktree add -b feature/<name> .worktrees/<name> main`.
 3. Das Feature im Worktree implementieren und sinnvoll committen. Vor dem Merge
    die für die Änderung relevanten Tests, statischen Prüfungen und den
-   Firmware-Build ausführen. Änderungen an Pins, Peripherie, Timing oder Funk
+   Integrationspaket-Build ausführen. Änderungen an Pins, Peripherie, Timing oder Funk
    zusätzlich auf der Zielplatine prüfen, soweit für ihre Verifizierung nötig.
    Prüfbefehle, Ergebnisse und Hardwarestand dokumentieren. Nicht ausgeführte
    Prüfungen ausdrücklich als offen kennzeichnen; sie gelten nicht als bestanden.
@@ -25,10 +25,10 @@ Diese Regeln gelten für das gesamte Firmware-Repository und seine Worktrees.
 5. Nach jedem Feature-Merge einen neuen Release-Build aus dem sauberen,
    zusammengeführten `main` erstellen. Keine Artefakte aus dem Feature-Worktree
    als Release des Merge-Stands übernehmen. Den Release-Build prüfen und die
-   tatsächlich gebauten Firmware-Artefakte aufbewahren.
+   tatsächlich gebauten Integrationspakete aufbewahren.
 6. Jeden Release mit eindeutiger, aufsteigender SemVer-Version und Git-Tag
    `v<major>.<minor>.<patch>` auf dem gebauten Commit kennzeichnen. Änderungen,
-   Commit-SHA, Toolchain-/SDK-Version, Build-Befehl, Zielplatine, Prüfergebnisse
+   Commit-SHA, HA-/ZHA-Version, Build-Befehl, Zielplatine, Prüfergebnisse
    und Artefaktpfade in `releases/<version>.md` dokumentieren. Artefakte unter
    `dist/<version>/` ablegen; generierte Binärdateien nicht in Git einchecken.
    Den Tag erst nach erfolgreichem Release-Build setzen. Keine bestehenden
@@ -40,12 +40,12 @@ Diese Regeln gelten für das gesamte Firmware-Repository und seine Worktrees.
 ## Build- und Verifizierungsgrundlage
 
 - Beim Einrichten der Firmware verbindliche, reproduzierbare Befehle für Setup,
-  Tests und Release-Build sowie die benötigten Toolchain-/SDK-Versionen in
+  Tests und Release-Build sowie die benötigten HA-/ZHA-Versionen in
   `README.md` dokumentieren. Diese Befehle anschließend im Workflow verwenden.
-- Solange Toolchain, Firmware oder notwendige Zielhardware-Prüfungen fehlen,
-  keinen erfolgreichen Firmware-Build oder verifizierten Release behaupten.
+- Solange Toolchain, Integration oder notwendige Zielhardware-Prüfungen fehlen,
+  keinen erfolgreichen Integrationspaket-Build oder verifizierten Release behaupten.
   Fehlende Voraussetzungen und offene Prüfungen konkret melden.
 - Ein Feature ist erst abgeschlossen, wenn Verifizierung, Merge nach `main`
   und der neue Release-Build erfolgreich durchgeführt und dokumentiert sind.
-- Push, Veröffentlichung eines Releases und Flashen einer angeschlossenen
-  Platine nur im Rahmen des vom Nutzer beauftragten Arbeitsumfangs durchführen.
+- Push, Veröffentlichung eines Releases und Installation in einer laufenden
+  HA-Instanz nur im Rahmen des vom Nutzer beauftragten Arbeitsumfangs durchführen.

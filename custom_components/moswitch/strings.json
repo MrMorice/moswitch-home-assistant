@@ -1,0 +1,50 @@
+{
+  "title": "MoSwitch",
+  "config": {
+    "step": {
+      "user": {
+        "title": "MoSwitch einrichten",
+        "description": "Ordne den Schalter zuerst in ZHA einem Raum zu. Alle Raumlampen werden automatisch eingerichtet.",
+        "data": {
+          "device_id": "MoSwitch"
+        }
+      }
+    },
+    "error": {
+      "invalid_device": "Bitte einen MoSwitch auswählen.",
+      "assign_area": "Bitte dem MoSwitch zuerst einen Raum zuweisen."
+    },
+    "abort": {
+      "already_configured": "Dieser MoSwitch ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MoSwitch Aktionen",
+        "description": "Wähle die Doppeltipp-Aktion und bei Bedarf Raumplayer. Szenen bitte in der gewünschten Reihenfolge auswählen; die Reihenfolge gilt für alle MoSwitches im Raum. Szenen mit dem Label ‚MoSwitch ignorieren‘ werden übersprungen.",
+        "data": {
+          "double_action": "Doppeltipp",
+          "players": "Mediaplayer im Raum",
+          "actions": "Eigene Aktion",
+          "scene_order": "Szenenreihenfolge im Raum"
+        }
+      }
+    },
+    "error": {
+      "assign_area": "Bitte zuerst einen Raum zuweisen.",
+      "room_players_only": "Nur Mediaplayer aus dem Raum auswählen.",
+      "room_scenes_only": "Nur Szenen aus dem Raum auswählen.",
+      "invalid_actions": "Bitte die eigene Aktion prüfen."
+    }
+  },
+  "selector": {
+    "double_action": {
+      "options": {
+        "media": "Play/Pause",
+        "custom": "Eigene HA-Aktion",
+        "none": "Keine Aktion"
+      }
+    }
+  }
+}
