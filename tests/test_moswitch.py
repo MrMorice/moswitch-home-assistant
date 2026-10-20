@@ -202,7 +202,7 @@ async def test_listener_deduplicates_only_matching_sequence(hass):
 
 @pytest.mark.asyncio
 async def test_commissioning_resolves_endpoint_and_commits_only_after_setup(hass, monkeypatch):
-    area = ar.async_get(hass).async_create("Raum").id
+    area = ar.async_get(hass).async_create("Raum mit einem langen Namen").id
     switch = device(hass, area)
     lamp = device(hass, area, "00:12:4b:00:01:02:03:06", "Shelly")
     light = entity(hass, "light", "lamp", device_id=lamp.id)
@@ -248,6 +248,7 @@ async def test_commissioning_resolves_endpoint_and_commits_only_after_setup(hass
     one = entry("moswitch", {"device_id": switch.id}, unique_id=IEEE)
     runtime.entries = {one.entry_id: one}
     await runtime.commission(one)
+    assert len(lamp_ep.add_to_group.call_args.args[1]) <= 16
     assert runtime.health[one.entry_id] == "Bereit für Gerätetest"
     assert send.await_count == 3
     await runtime.commission(one)
