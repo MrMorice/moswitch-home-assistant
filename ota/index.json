@@ -1,7 +1,7 @@
 {
   "firmwares": [
     {
-      "file_version": 65539,
+      "file_version": 65540,
       "manufacturer_id": 65521,
       "image_type": 1,
       "manufacturer_names": [
@@ -10,12 +10,12 @@
       "model_names": [
         "MoSwitch v1"
       ],
+      "file_size": 331606,
+      "checksum": "sha3-256:404e118ae4bf17d0d28062a72a746b7134be6d59c41dfb9fc2c62d496aa77b9e",
       "min_current_file_version": 65538,
-      "max_current_file_version": 65538,
-      "checksum": "sha3-256:95c859bdcad96e20a14a5b8d4dc09d3cfcbfa5a6e35d8dd2d984e556decff393",
-      "file_size": 331078,
-      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-test-0.1.3/moswitch-0.1.3.ota",
-      "release_notes": "Controlled bench image. Requires custom MG24 OTA bootloader and firmware 0.1.2."
+      "max_current_file_version": 65539,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.4/moswitch-0.1.4.ota",
+      "release_notes": "Prototype 0.1.4: page transfer with missing-block recovery and light priority. Requires the custom MoSwitch MG24 OTA bootloader and firmware 0.1.2 or 0.1.3."
     }
   ]
 }

@@ -4,7 +4,7 @@ MoSwitch ergänzt einen kapazitiven Zigbee-Raumschalter um automatische
 Raumzuordnung, Szenenwechsel und konfigurierbare Doppeltipp-Aktionen in Home
 Assistant mit ZHA. Die Integration wird über HACS installiert.
 
-**Entwicklungsstand 0.1.2:** Erste Testversion für die MoSwitch-Bench-Firmware.
+**Entwicklungsstand 0.1.3:** Erste Testversion für die MoSwitch-Bench-Firmware.
 Keine fertige Produktfreigabe. Die Integration wird mit Home Assistant 2026.10.2
 und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet werden.
 
@@ -49,12 +49,16 @@ Aufbau verifiziert; Cluster-Unterstützung allein ist noch kein Funktionsnachwei
 - HA-spezifische Integration für 2026.10; keine Zusage für ältere ZHA-APIs.
 - Für mehrere Player folgt Play/Pause derzeit der jeweiligen HA-Aktion pro Player.
 - Erstinstallation und passender OTA-Bootloader benötigen USB/SWD. Der OTA-Index
-  enthält ein kontrolliertes Testimage ausschließlich für Firmware 0.1.2 mit
-  neuem Bootloader. Ein Firmware-Update wird über die native ZHA-Update-Entity
+  enthält Firmware-Prototyp 0.1.4 ausschließlich für Firmware 0.1.2/0.1.3 mit
+  passendem MoSwitch-Bootloader. Ein Firmware-Update wird über die native ZHA-Update-Entity
   gestartet; es ist kein HACS-Update und benötigt keinen HA-Neustart.
 - Direkte Steuerung und Wiederherstellung wurden mit einem Shelly Dimmer Gen4
   bei physisch abgezogenem Koordinator geprüft. Mehrere Lampen/Schalter sowie
   der montierte Touch- und LED-Aufbau bleiben weitere Hardwaretests.
+- Ein vollständiger OTA-Wechsel mit Seitenübertragung und Nachforderung fehlender
+  Blöcke wurde bei unveränderter Aufstellung bestätigt (rund 16 Minuten),
+  einschließlich Image-Prüfung, Neustart und Konfigurationserhalt. Ein Einfach-Tipp
+  kann einen Download kontrolliert abbrechen und direkt das Licht schalten.
 - Keine Fernsteuerung des Rings, keine Cloud und keine in der Firmware
   hinterlegte HA-IP-Adresse.
 
