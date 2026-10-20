@@ -19,6 +19,7 @@ from homeassistant.helpers.script import Script, async_validate_actions_config
 from homeassistant.helpers.storage import Store
 from zigpy import types as t
 from zigpy.exceptions import ZigbeeException
+from zigpy.ota.providers import RemoteZigpyProvider
 from zigpy.zcl import foundation
 from zigpy.zdo import types as zdo_t
 
@@ -66,6 +67,7 @@ class Runtime:
         self.unsubs = []
         self.pending = None
         self.ignore_label = ""
+        self.ota_controller = None
         self.active = True
 
     async def start(self):
@@ -196,6 +198,19 @@ class Runtime:
             }
             # Persist allocation before changing physical devices.
             await self.store.async_save({"rooms": self.rooms})
+        # Limit images by manufacturer/model metadata, not by the Silicon Labs
+        # node-descriptor manufacturer code used by the development stack.
+        if (
+            hasattr(gateway.application_controller, "ota")
+            and gateway.application_controller.ota is not self.ota_controller
+        ):
+            gateway.application_controller.ota.register_provider(
+                RemoteZigpyProvider(
+                    url="https://raw.githubusercontent.com/MrMorice/moswitch-home-assistant/main/ota/index.json",
+                    manufacturer_ids=[],
+                )
+            )
+            self.ota_controller = gateway.application_controller.ota
         group = self.rooms[area]["group"]
         value = protocol.revision(group, targets)
         signature = (area, value)
@@ -206,7 +221,7 @@ class Runtime:
             lamp = gateway.application_controller.get_device(ieee=t.EUI64.convert(target.ieee))
             lamp_ep = lamp.endpoints[target.endpoint]
             if 4 in lamp_ep.in_clusters:
-                status = await lamp_ep.add_to_group(group, f"MoSwitch {area}")
+                status = await lamp_ep.add_to_group(group, f"MS {group:04x}")
                 if status not in (foundation.Status.SUCCESS, foundation.Status.DUPLICATE_EXISTS):
                     raise RuntimeError(f"Gruppenbeitritt fehlgeschlagen: {target.ieee}: {status}")
             # Reports go to the switch directly, independent of HA.
