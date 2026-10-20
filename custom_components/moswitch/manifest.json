@@ -1,7 +1,7 @@
 {
   "domain": "moswitch",
   "name": "MoSwitch",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "codeowners": [
     "@MrMorice"
   ],
