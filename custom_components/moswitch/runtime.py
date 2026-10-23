@@ -132,6 +132,16 @@ class Runtime:
     def touch_report(self, ieee, status):
         for entry in self.entries.values():
             if entry.unique_id == ieee:
+                previous = self.touch_status.get(entry.entry_id)
+                feedback = status.get("feedback")
+                if previous is not None and status["state"] == 7 and feedback in (3, 4, 5, 6, 7, 8):
+                    fields = ("feedback", "learning_taps", "detected_contacts", "rejected_contacts")
+                    if any(previous.get(key) != status.get(key) for key in fields):
+                        self.hass.bus.async_fire("moswitch_calibration", {
+                            "device_id": entry.data["device_id"],
+                            **{key: status[key] for key in fields},
+                            "duration_ms": status["last_duration_ms"],
+                        })
                 self.touch_status[entry.entry_id] = status
                 self.touch_received_at[entry.entry_id] = time.monotonic()
                 async_dispatcher_send(self.hass, f"{DOMAIN}_{entry.entry_id}")

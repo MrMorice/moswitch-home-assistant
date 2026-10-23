@@ -110,7 +110,7 @@ async def cancel_touch(device):
 
 
 def touch_status(payload):
-    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24):
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24, 56):
         return None
     version, state, flags, progress, raw, baseline, press, release = struct.unpack(
         "<BBBBIIII", payload[:20]
@@ -120,12 +120,14 @@ def touch_status(payload):
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version == 2:
-        if len(payload) != 24 or state > 8 or progress > 10:
+    elif version in (2, 3):
+        if len(payload) != (24 if version == 2 else 56) or state > 8 or progress > 10:
             return None
     else:
         return None
-    return {
+    if version == 3 and (payload[24] > 8 or payload[25] > 6 or payload[26:28] != b"\0\0"):
+        return None
+    data = {
         "state": state,
         "calibrated": bool(flags & 1),
         "pressed": bool(flags & 2),
@@ -135,6 +137,15 @@ def touch_status(payload):
         "release_delta_us": release,
         "learning_taps": progress,
         "required_taps": 10,
-        "weakest_tap_delta_us": struct.unpack("<I", payload[20:])[0] if version == 2 else None,
+        "weakest_tap_delta_us": struct.unpack("<I", payload[20:24])[0] if version >= 2 else None,
         "protocol_version": version,
     }
+    if version == 3:
+        data.update(zip(
+            ("detected_contacts", "rejected_contacts", "last_duration_ms", "last_delta_us",
+             "invalid_samples", "learning_guard_us", "learning_baseline_us"),
+            struct.unpack("<IIIIIII", payload[28:]), strict=True,
+        ))
+        data["feedback"] = payload[24]
+        data["failure_reason"] = payload[25]
+    return data

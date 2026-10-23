@@ -117,3 +117,15 @@ python3 -m venv .venv
 Das reproduzierbare Integrationspaket und seine Commit-/SHA-256-Metadaten liegen
 unter `dist/<version>/`. `AGENTS.md` beschreibt Worktree-, Verifizierungs- und
 Releaseablauf. Zugangsdaten und Netzwerkkonfiguration gehören niemals ins Repo.
+
+
+Ab Integration 0.1.8 und Firmware-Prototyp 0.1.13 zeigt „Touchkontakt“ den
+bestätigten Kontaktbeginn und das Loslassen direkt am bestehenden ZHA-Gerät.
+Die Kalibrierungsanzeige unterscheidet „Kontakt erkannt“, „Tipp gezählt“ und
+sichtbare Ablehnungsgründe (zu lang, zu schwach, Messaussetzer). Jeder erkannte
+Lernkontakt und sein Ergebnis erscheinen zusätzlich im Aktivitätsbereich als
+Kalibrierungsereignis, ohne normale Schaltaktionen auszulösen. Das Zählen erfolgt
+erst nach Loslassen. Zulässige Lernkontakte dauern jetzt bis zu zwei Sekunden.
+Das Akzeptieren ungültiger Messungen oder eine dauernde Driftkalibrierung ist
+damit nicht verbunden. Ein Netzstörungsproblem kann weiter Kontakte verhindern;
+die Oberfläche benennt es jetzt. Ältere Statusprotokolle bleiben lesbar.
