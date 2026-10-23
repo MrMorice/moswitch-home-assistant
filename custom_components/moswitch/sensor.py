@@ -17,6 +17,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     device = dr.async_get(hass).async_get(entry.data["device_id"])
     measurements = [
         TouchMeasurement(entry, "raw_us", "Touch-Messwert", "µs"),
+        TouchMeasurement(entry, "filtered_us", "Touch-Gefilterter Messwert", "µs"),
         TouchMeasurement(entry, "baseline_us", "Touch-Baseline", "µs"),
         TouchMeasurement(entry, "press_threshold_us", "Touch-Einschaltschwelle", "µs"),
         TouchMeasurement(entry, "release_threshold_us", "Touch-Loslassschwelle", "µs"),
@@ -74,6 +75,12 @@ class TouchStatus(ConfigurationStatus):
         status = self.entry.runtime_data.touch_status.get(self.entry.entry_id)
         if status is None:
             return None
+        if status["state"] == 9:
+            return "Scheibe loslassen, dann Ruhemessung starten"
+        if status["state"] == 10:
+            return "Diagnose aktiv – Aktionen gesperrt"
+        if status["state"] == 3 and status.get("test_mode"):
+            return "Kalibriert – Testmodus zum Schalten ausschalten"
         if status["state"] == 7:
             if feedback := TOUCH_FEEDBACK.get(status.get("feedback")):
                 return f"{feedback} ({status['learning_taps']}/10)"

@@ -7,7 +7,7 @@ from .const import DOMAIN
 from .runtime import Runtime
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-PLATFORMS = [Platform.SENSOR, Platform.BUTTON, Platform.BINARY_SENSOR, Platform.NUMBER]
+PLATFORMS = [Platform.SENSOR, Platform.BUTTON, Platform.BINARY_SENSOR, Platform.NUMBER, Platform.SWITCH]
 
 
 async def async_setup_entry(hass, entry):

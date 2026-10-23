@@ -63,6 +63,7 @@ class Runtime:
         self.hass = hass
         self.entries = {}
         self.health = {}
+        self.touch_quiet = set()
         self.touch_status = {}
         self.touch_received_at = {}
         self.touch_parameter_locks = {}
@@ -135,6 +136,11 @@ class Runtime:
         for entry in self.entries.values():
             if entry.unique_id == ieee:
                 previous = self.touch_status.get(entry.entry_id)
+                if status.get("test_mode") or status["state"] in (1, 2, 7, 9, 10):
+                    self.touch_quiet.add(entry.entry_id)
+                # A reported normal state is required to release the HA guard.
+                else:
+                    self.touch_quiet.discard(entry.entry_id)
                 feedback = status.get("feedback")
                 if previous is not None and status["state"] == 7 and feedback in (3, 4, 5, 6, 7, 8):
                     fields = ("feedback", "learning_taps", "detected_contacts", "rejected_contacts")
@@ -147,7 +153,7 @@ class Runtime:
                 waiter = self.touch_parameter_waiters.get(entry.entry_id)
                 if waiter is not None:
                     expected, future = waiter
-                    if not future.done() and status["state"] == 3 and all(
+                    if not future.done() and status["state"] not in (1, 2, 7, 9) and all(
                         status.get(key) == value for key, value in expected.items()
                     ):
                         future.set_result(None)
@@ -168,7 +174,19 @@ class Runtime:
         return device
 
     async def calibrate_touch(self, entry):
+        self.touch_quiet.add(entry.entry_id)
         await protocol.calibrate_touch(self.listen_switch(entry))
+
+    async def test_touch(self, entry, enabled):
+        # Keep blocked on command loss; only a subsequent normal-mode report
+        # clears the guard. Firmware also guards its direct Zigbee actions.
+        self.touch_quiet.add(entry.entry_id)
+        method = protocol.diagnose_touch if enabled else protocol.normal_touch
+        await method(self.listen_switch(entry))
+
+    async def baseline_touch(self, entry):
+        self.touch_quiet.add(entry.entry_id)
+        await protocol.baseline_touch(self.listen_switch(entry))
 
     async def query_touch(self, entry):
         await protocol.query_touch(self.listen_switch(entry))
@@ -177,27 +195,30 @@ class Runtime:
         await protocol.cancel_touch(self.listen_switch(entry))
 
     async def set_touch_parameter(self, entry, key, value):
-        fields = ("baseline_us", "press_delta_us", "release_delta_us")
+        tuning = key in protocol.TUNING_FIELDS
+        fields = protocol.TUNING_FIELDS if tuning else ("baseline_us", "press_delta_us", "release_delta_us")
         if key not in fields:
             raise ValueError("Unbekannter Touchparameter")
         lock = self.touch_parameter_locks.setdefault(entry.entry_id, asyncio.Lock())
         async with lock:
             status = self.touch_status.get(entry.entry_id, {})
             received = self.touch_received_at.get(entry.entry_id, 0)
-            if not status.get("parameters_writable"):
+            if not status.get("tuning_writable" if tuning else "parameters_writable"):
                 raise HomeAssistantError("Zum Einstellen ist Firmware ab 0.1.14 erforderlich")
-            if time.monotonic() - received >= 120 or not status.get("calibrated"):
+            if time.monotonic() - received >= 120 or (not tuning and not status.get("calibrated")):
                 raise HomeAssistantError("Keine aktuelle gültige Touchkalibrierung verfügbar")
-            if status.get("state") in (1, 2, 7) or status.get("pressed"):
+            if status.get("state") in (1, 2, 7, 9) or (status.get("pressed") and status.get("state") != 10):
                 raise HomeAssistantError("Erst Kalibrierung beenden und den Touch loslassen")
             values = {field: status[field] for field in fields}
             values[key] = value
-            if not protocol.valid_touch_parameters(*(values[field] for field in fields)):
+            validate = protocol.valid_touch_tuning if tuning else protocol.valid_touch_parameters
+            if not validate(*(values[field] for field in fields)):
                 raise ValueError("Loslassabstand muss kleiner als Einschaltabstand sein")
             future = asyncio.get_running_loop().create_future()
             self.touch_parameter_waiters[entry.entry_id] = (values, future)
             try:
-                await protocol.set_touch_parameters(
+                setter = protocol.set_touch_tuning if tuning else protocol.set_touch_parameters
+                await setter(
                     self.listen_switch(entry), *(values[field] for field in fields),
                 )
                 # A command ACK alone is insufficient: require the device's
@@ -250,6 +271,8 @@ class Runtime:
         return sorted(targets)
 
     async def commission(self, entry):
+        if entry.entry_id in self.touch_quiet:
+            return
         device = self.listen_switch(entry)
         area = device_area(self.hass, entry.data["device_id"])
         if not area:
@@ -323,7 +346,7 @@ class Runtime:
 
     async def gesture(self, ieee, kind, sequence=None):
         entry = next((entry for entry in self.entries.values() if entry.unique_id == ieee), None)
-        if entry is None:
+        if entry is None or entry.entry_id in self.touch_quiet:
             return
         if kind not in (0, 1, 2):
             return
@@ -392,6 +415,7 @@ class Runtime:
 
     def remove(self, entry):
         self.entries.pop(entry.entry_id, None)
+        self.touch_quiet.discard(entry.entry_id)
         self.touch_status.pop(entry.entry_id, None)
         self.touch_received_at.pop(entry.entry_id, None)
         waiter = self.touch_parameter_waiters.pop(entry.entry_id, None)

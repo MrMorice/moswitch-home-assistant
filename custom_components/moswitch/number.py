@@ -11,6 +11,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from zigpy.exceptions import ZigbeeException
 
 from .const import DOMAIN
+from .protocol import TUNING_BOUNDS, TUNING_FIELDS
 
 PARAMETERS = (
     ("baseline_us", "Touch-Baseline einstellen"),
@@ -22,6 +23,11 @@ PARAMETERS = (
 async def async_setup_entry(hass, entry, async_add_entities):
     device = dr.async_get(hass).async_get(entry.data["device_id"])
     entities = [TouchParameter(entry, key, label) for key, label in PARAMETERS]
+    entities.extend(TouchTuningParameter(entry, key, label, bounds) for key, label, bounds in zip(
+        TUNING_FIELDS,
+        ("Touch-Entprellung Einschalten", "Touch-Entprellung Loslassen", "Touch-Medianfilter",
+         "Touch-Aussetzer-Toleranz", "Touch-Ruhezeit nach Loslassen"), TUNING_BOUNDS, strict=True,
+    ))
     for entity in entities:
         entity.device_entry = device
     async_add_entities(entities)
@@ -69,7 +75,7 @@ class TouchParameter(NumberEntity):
 
     async def async_set_native_value(self, value):
         if not math.isfinite(value) or value != int(value):
-            raise HomeAssistantError("Bitte einen ganzzahligen Mikrosekundenwert eingeben")
+            raise HomeAssistantError("Bitte einen ganzzahligen Wert eingeben")
         try:
             await self.entry.runtime_data.set_touch_parameter(self.entry, self.key, int(value))
         except (ZigbeeException, TimeoutError, ValueError, KeyError, RuntimeError) as err:
@@ -79,3 +85,24 @@ class TouchParameter(NumberEntity):
         self.async_on_remove(async_dispatcher_connect(
             self.hass, f"{DOMAIN}_{self.entry.entry_id}", self.async_write_ha_state,
         ))
+
+
+class TouchTuningParameter(TouchParameter):
+    def __init__(self, entry, key, label, bounds):
+        super().__init__(entry, key, label)
+        self.bounds = bounds
+        self._attr_native_unit_of_measurement = None if key == "filter_samples" else "ms"
+        self._attr_native_step = 2 if key == "filter_samples" else 1
+
+    @property
+    def available(self):
+        received = self.entry.runtime_data.touch_received_at.get(self.entry.entry_id, 0)
+        return self.status.get("tuning_writable", False) and time.monotonic() - received < 120
+
+    @property
+    def native_min_value(self):
+        return self.bounds[0]
+
+    @property
+    def native_max_value(self):
+        return self.bounds[1]
