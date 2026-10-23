@@ -41,14 +41,14 @@ class GestureListener:
             return
         sequence, kind = struct.unpack("<IB", args)
         now = time.monotonic()
+        if kind not in (0, 1, 2):
+            return
         key = (sequence, kind)
         if self.last and self.last[0] == key and now - self.last[1] < 10:
             return
         self.last = (key, now)
-        if kind not in (1, 2):
-            return
         self.runtime.hass.async_create_task(
-            self.runtime.gesture(self.ieee, kind),
+            self.runtime.gesture(self.ieee, kind, sequence),
             "MoSwitch gesture",
         )
 
@@ -244,11 +244,24 @@ class Runtime:
             await self.store.async_save({"rooms": self.rooms})
         self.schedule_sync()
 
-    async def gesture(self, ieee, kind):
+    async def gesture(self, ieee, kind, sequence=None):
         entry = next((entry for entry in self.entries.values() if entry.unique_id == ieee), None)
         if entry is None:
             return
+        if kind not in (0, 1, 2):
+            return
         device_id = entry.data["device_id"]
+        activity = {
+            "device_id": device_id,
+            "gesture": ("single_press", "double_press", "hold")[kind],
+        }
+        if sequence is not None:
+            activity["sequence"] = sequence
+        self.hass.bus.async_fire("moswitch_gesture", activity)
+        # Logging works without room assignment or a configured HA action.
+        # Single is already handled by firmware and must never switch in HA.
+        if kind == 0:
+            return
         area = device_area(self.hass, device_id)
         if not area:
             return

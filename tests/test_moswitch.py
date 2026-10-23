@@ -277,3 +277,48 @@ async def test_custom_action_is_validated_but_options_stay_json_serializable(has
     await runtime.gesture(IEEE, 1)
     await hass.async_block_till_done()
     assert received == [{"value": 2}]
+
+
+@pytest.mark.asyncio
+async def test_gesture_activity_records_every_kind_without_room_or_actions(hass):
+    import struct
+
+    from homeassistant.core import Event
+
+    from custom_components.moswitch.logbook import async_describe_events
+
+    runtime = Runtime(hass)
+    switch = device(hass)
+    one = entry("moswitch", {"device_id": switch.id}, unique_id=IEEE)
+    runtime.entries = {one.entry_id: one}
+    events = []
+    hass.bus.async_listen("moswitch_gesture", lambda event: events.append(event.data))
+    descriptions = {}
+    async_describe_events(
+        hass, lambda domain, name, callback: descriptions.update({name: (domain, callback)})
+    )
+    domain, describe = descriptions["moswitch_gesture"]
+    assert domain == "moswitch"
+    listener = GestureListener(runtime, IEEE)
+    for sequence, kind, name, message in [
+        (1, 0, "single_press", "Einfach-Tipp erkannt"),
+        (2, 1, "double_press", "Doppeltipp erkannt"),
+        (3, 2, "hold", "Halten erkannt"),
+    ]:
+        packet = struct.pack("<IB", sequence, kind)
+        listener.cluster_command(sequence, 0x80, packet)
+        listener.cluster_command(sequence, 0x80, packet)
+        await hass.async_block_till_done()
+        # Top-level device_id is what HA Recorder/Logbook uses to select
+        # activities in this existing ZHA device's activity panel.
+        assert events[-1] == {"device_id": switch.id, "gesture": name, "sequence": sequence}
+        assert describe(Event("moswitch_gesture", events[-1])) == {
+            "name": "Test switch",
+            "message": message,
+        }
+    assert len(events) == 3
+    # No light service is registered: logging Single must never switch in HA.
+    runtime.remove(one)
+    listener.cluster_command(4, 0x80, struct.pack("<IB", 4, 0))
+    await hass.async_block_till_done()
+    assert len(events) == 3
