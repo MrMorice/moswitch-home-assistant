@@ -37,6 +37,11 @@ class GestureListener:
         self.last = None
 
     def cluster_command(self, tsn, command_id, args):
+        if command_id == 0x81:
+            status = protocol.touch_status(args)
+            if status is not None:
+                self.runtime.touch_report(self.ieee, status)
+            return
         if command_id != 0x80 or not isinstance(args, (bytes, bytearray)) or len(args) != 5:
             return
         sequence, kind = struct.unpack("<IB", args)
@@ -58,6 +63,8 @@ class Runtime:
         self.hass = hass
         self.entries = {}
         self.health = {}
+        self.touch_status = {}
+        self.touch_received_at = {}
         self.rooms = {}
         self.store = Store(hass, 1, DOMAIN)
         self.lock = asyncio.Lock()
@@ -122,6 +129,34 @@ class Runtime:
         self.health[entry.entry_id] = text
         async_dispatcher_send(self.hass, f"{DOMAIN}_{entry.entry_id}")
 
+    def touch_report(self, ieee, status):
+        for entry in self.entries.values():
+            if entry.unique_id == ieee:
+                self.touch_status[entry.entry_id] = status
+                self.touch_received_at[entry.entry_id] = time.monotonic()
+                async_dispatcher_send(self.hass, f"{DOMAIN}_{entry.entry_id}")
+
+    def listen_switch(self, entry):
+        device = self.get_switch(entry)
+        cluster = device.endpoints[ENDPOINT].in_clusters[0]
+        attached = self.listeners.get(entry.entry_id)
+        if attached is None or attached[0] is not cluster:
+            if attached:
+                attached[0].remove_listener(attached[1])
+            listener = GestureListener(self, str(device.ieee))
+            cluster.add_listener(listener)
+            self.listeners[entry.entry_id] = (cluster, listener)
+        return device
+
+    async def calibrate_touch(self, entry):
+        await protocol.calibrate_touch(self.listen_switch(entry))
+
+    async def query_touch(self, entry):
+        await protocol.query_touch(self.listen_switch(entry))
+
+    async def cancel_touch(self, entry):
+        await protocol.cancel_touch(self.listen_switch(entry))
+
     def get_switch(self, entry):
         ieee = ieee_for_device(self.hass, entry.data["device_id"])
         gateway = get_zha_gateway(self.hass)
@@ -164,16 +199,7 @@ class Runtime:
         return sorted(targets)
 
     async def commission(self, entry):
-        device = self.get_switch(entry)
-        ieee = str(device.ieee)
-        cluster = device.endpoints[ENDPOINT].in_clusters[0]
-        attached = self.listeners.get(entry.entry_id)
-        if attached is None or attached[0] is not cluster:
-            if attached:
-                attached[0].remove_listener(attached[1])
-            listener = GestureListener(self, ieee)
-            cluster.add_listener(listener)
-            self.listeners[entry.entry_id] = (cluster, listener)
+        device = self.listen_switch(entry)
         area = device_area(self.hass, entry.data["device_id"])
         if not area:
             await protocol.clear(device)
@@ -315,6 +341,8 @@ class Runtime:
 
     def remove(self, entry):
         self.entries.pop(entry.entry_id, None)
+        self.touch_status.pop(entry.entry_id, None)
+        self.touch_received_at.pop(entry.entry_id, None)
         attached = self.listeners.pop(entry.entry_id, None)
         if attached:
             attached[0].remove_listener(attached[1])

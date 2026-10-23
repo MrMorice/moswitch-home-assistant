@@ -1,0 +1,66 @@
+"""Explicit touch calibration; acceptance does not imply successful completion."""
+
+from homeassistant.components.button import ButtonEntity
+from homeassistant.const import EntityCategory
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import device_registry as dr
+from zigpy.exceptions import ZigbeeException
+
+
+async def async_setup_entry(hass, entry, async_add_entities):
+    device = dr.async_get(hass).async_get(entry.data["device_id"])
+    entities = [CalibrateTouch(entry), CancelTouch(entry)]
+    for entity in entities:
+        # Reuse the selected physical device. Registering its identifiers with
+        # a second config entry would create a separate device in HA 2026.10.
+        entity.device_entry = device
+    async_add_entities(entities)
+
+
+class CalibrateTouch(ButtonEntity):
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_icon = "mdi:gesture-tap"
+    _attr_should_poll = False
+
+    def __init__(self, entry):
+        self.entry = entry
+        self._attr_unique_id = f"{entry.unique_id}_calibrate_touch"
+        self._attr_name = f"{entry.title} Touch kalibrieren"
+
+    async def async_press(self):
+        try:
+            await self.entry.runtime_data.calibrate_touch(self.entry)
+        except (
+            HomeAssistantError,
+            ZigbeeException,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            RuntimeError,
+        ) as err:
+            raise HomeAssistantError(
+                "Touchkalibrierung nicht gestartet: Firmware ab 0.1.8 für zehn Tipps erforderlich; "
+                "Schalter muss erreichbar sein und darf nicht beschäftigt oder berührt sein."
+            ) from err
+
+
+class CancelTouch(CalibrateTouch):
+    _attr_icon = "mdi:close-circle-outline"
+
+    def __init__(self, entry):
+        super().__init__(entry)
+        self._attr_unique_id = f"{entry.unique_id}_cancel_touch"
+        self._attr_name = f"{entry.title} Kalibrierung abbrechen"
+
+    async def async_press(self):
+        try:
+            await self.entry.runtime_data.cancel_touch(self.entry)
+        except (
+            HomeAssistantError,
+            ZigbeeException,
+            TimeoutError,
+            ValueError,
+            KeyError,
+            RuntimeError,
+        ) as err:
+            raise HomeAssistantError("Keine laufende Kalibrierung erreichbar.") from err

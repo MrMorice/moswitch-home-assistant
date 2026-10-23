@@ -4,7 +4,7 @@ MoSwitch ergänzt einen kapazitiven Zigbee-Raumschalter um automatische
 Raumzuordnung, Szenenwechsel und konfigurierbare Doppeltipp-Aktionen in Home
 Assistant mit ZHA. Die Integration wird über HACS installiert.
 
-**Entwicklungsstand 0.1.6:** Erste Testversion für die MoSwitch-Bench-Firmware.
+**Entwicklungsstand 0.1.7:** Erste Testversion für die MoSwitch-Bench-Firmware.
 Keine fertige Produktfreigabe. Die Integration wird mit Home Assistant 2026.10.2
 und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet werden.
 
@@ -26,6 +26,30 @@ an, ob die technische Einrichtung erfolgreich war. Der Statusring wird nicht als
 Lampe in HA angelegt. Raumänderungen werden ohne erneutes Kompilieren der
 Firmware erkannt. Reines Lichtschalten erfolgt auf dem Schalter, niemals durch
 zusätzliche HA-Toggle-Automationen.
+
+## Touch kalibrieren
+
+Ab Version 0.1.7 gibt es beim vorhandenen ZHA-Schalter unter Konfiguration
+**Touch kalibrieren** und **Kalibrierung abbrechen**. Der Diagnosesensor
+**Touchkalibrierung** zeigt den Ablauf und „Bitte tippen: n/10“.
+Firmware-Diagnosestand ab 0.1.8 ist für das geführte Lernen erforderlich.
+
+1. Den Schalter unberührt auf seiner üblichen Unterlage lassen und den
+   Kalibrierknopf drücken. Vier Sekunden nicht berühren.
+2. Sobald „Bitte tippen: 0/10“ erscheint, zehnmal wie im Alltag kurz tippen,
+   jeweils vollständig loslassen und etwa 0,3–1 Sekunden Abstand lassen.
+3. Jeder vollständig erkannte Tipp erhöht den Zähler. Die einfarbige
+   XIAO-Onboard-LED atmet während des Lernens und leuchtet bei Kontakt auf.
+4. Erst „Kalibriert“ bestätigt das gespeicherte Ergebnis. Bis dahin sind
+   normale Licht-/Mediengesten gesperrt. Nach 90 Sekunden ohne Abschluss
+   oder beim Abbrechen bleibt die vorige Kalibrierung erhalten.
+
+Mit Messingscheibe und Gehäuse erneut lernen. Blaues Ringfeedback ist Teil
+der späteren Ring-Inbetriebnahme; im derzeitigen USB-Aufbau wird die
+Onboard-LED verwendet. Der Status zeigt Rohwerte, Schwellen und schwächsten
+Lerntipp als Attribute. Die Entities werden direkt dem ausgewählten bestehenden
+ZHA-Gerät zugeordnet. Ab Firmware 0.1.5 bleiben alte Ruhe-Kalibrierungen lesbar;
+der Zehn-Tipp-Modus erfordert die neue Firmware.
 
 ## Aktivitäten beim Schalter
 
