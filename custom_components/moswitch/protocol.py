@@ -95,3 +95,46 @@ async def configure(device, group: int, targets: list[Target]) -> int:
 
 async def clear(device):
     await request(device, 0x43, Empty)
+
+
+async def calibrate_touch(device):
+    await request(device, 0x44, Empty)
+
+
+async def query_touch(device):
+    await request(device, 0x45, Empty)
+
+
+async def cancel_touch(device):
+    await request(device, 0x46, Empty)
+
+
+def touch_status(payload):
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24):
+        return None
+    version, state, flags, progress, raw, baseline, press, release = struct.unpack(
+        "<BBBBIIII", payload[:20]
+    )
+    if flags & ~3:
+        return None
+    if version == 1:
+        if len(payload) != 20 or state > 6 or progress:
+            return None
+    elif version == 2:
+        if len(payload) != 24 or state > 8 or progress > 10:
+            return None
+    else:
+        return None
+    return {
+        "state": state,
+        "calibrated": bool(flags & 1),
+        "pressed": bool(flags & 2),
+        "raw_us": None if raw == 0xFFFFFFFF else raw,
+        "baseline_us": baseline,
+        "press_delta_us": press,
+        "release_delta_us": release,
+        "learning_taps": progress,
+        "required_taps": 10,
+        "weakest_tap_delta_us": struct.unpack("<I", payload[20:])[0] if version == 2 else None,
+        "protocol_version": version,
+    }

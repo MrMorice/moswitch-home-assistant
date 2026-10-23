@@ -326,3 +326,102 @@ async def test_gesture_activity_records_every_kind_without_room_or_actions(hass)
     listener.cluster_command(4, 0x80, struct.pack("<IB", 4, 0))
     await hass.async_block_till_done()
     assert len(events) == 3
+
+
+@pytest.mark.asyncio
+async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
+    import logging
+    import struct
+
+    from homeassistant.helpers.entity_component import EntityComponent
+    from homeassistant.loader import async_setup as setup_loader
+
+    from custom_components.moswitch import button, sensor
+
+    setup_loader(hass)
+    switch = device(hass)
+    one = entry("moswitch", {"device_id": switch.id}, unique_id=IEEE)
+    hass.config_entries._entries[one.entry_id] = one
+    runtime = Runtime(hass)
+    runtime.entries = {one.entry_id: one}
+    runtime.calibrate_touch = AsyncMock()
+    runtime.cancel_touch = AsyncMock()
+    runtime.query_touch = AsyncMock()
+    one.runtime_data = runtime
+    components = []
+    all_entities = []
+    for domain, platform in [("button", button), ("sensor", sensor)]:
+        component = EntityComponent(logging.getLogger(__name__), domain, hass)
+        component._platforms[domain].config_entry = one
+        entities = []
+        await platform.async_setup_entry(hass, one, entities.extend)
+        await component.async_add_entities(entities)
+        components.append(component)
+        all_entities.extend(entities)
+    start = next(e for e in all_entities if e.unique_id.endswith("_calibrate_touch"))
+    cancel = next(e for e in all_entities if e.unique_id.endswith("_cancel_touch"))
+    status = next(e for e in all_entities if e.unique_id.endswith("_touch_calibration"))
+    for entity in (start, cancel, status):
+        assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
+    assert len(dr.async_get(hass).devices) == 1
+    await start.async_press()
+    runtime.calibrate_touch.assert_awaited_once_with(one)
+    await cancel.async_press()
+    runtime.cancel_touch.assert_awaited_once_with(one)
+    listener = GestureListener(runtime, IEEE)
+    packet = struct.pack("<BBBBIIIII", 2, 7, 1, 4, 25, 12, 8, 4, 9)
+    listener.cluster_command(1, 0x81, packet)
+    await hass.async_block_till_done()
+    state = hass.states.get(status.entity_id)
+    assert state.state == "Bitte tippen: 4/10"
+    assert state.attributes["learning_taps"] == 4
+    assert state.attributes["weakest_tap_delta_us"] == 9
+    runtime.calibrate_touch.side_effect = RuntimeError("busy")
+    from homeassistant.exceptions import HomeAssistantError
+
+    with pytest.raises(HomeAssistantError):
+        await start.async_press()
+    runtime.touch_received_at[one.entry_id] -= 121
+    assert not status.available
+    for component in components:
+        for entity in list(component.entities):
+            await component.async_remove_entity(entity.entity_id)
+
+
+@pytest.mark.asyncio
+async def test_guided_calibration_wire_commands_and_rejections():
+    calls = []
+
+    async def send(general, command, schema, *args, **kwargs):
+        calls.append((command, schema(*args).serialize(), kwargs))
+        return SimpleNamespace(status=foundation.Status.SUCCESS)
+
+    dev = SimpleNamespace(
+        endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})}
+    )
+    await protocol.calibrate_touch(dev)
+    await protocol.query_touch(dev)
+    await protocol.cancel_touch(dev)
+    assert [(c, payload) for c, payload, _ in calls] == [(0x44, b""), (0x45, b""), (0x46, b"")]
+    assert all(kwargs["manufacturer"] == 0xFFF1 for _, _, kwargs in calls)
+    dev.endpoints[10].in_clusters[0].request = AsyncMock(return_value=SimpleNamespace(status=1))
+    with pytest.raises(RuntimeError):
+        await protocol.calibrate_touch(dev)
+
+
+@pytest.mark.parametrize(
+    "version,state,count,size",
+    [(1, 7, 0, 20), (1, 3, 1, 20), (2, 9, 0, 24), (2, 7, 11, 24), (2, 7, 0, 20), (3, 7, 0, 24)],
+)
+def test_invalid_guided_status(version, state, count, size):
+    import struct
+
+    payload = struct.pack("<BBBBIIII", version, state, 0, count, 12, 12, 8, 4) + bytes(size - 20)
+    assert protocol.touch_status(payload) is None
+
+
+def test_legacy_status_still_supported():
+    import struct
+
+    data = protocol.touch_status(struct.pack("<BBBBIIII", 1, 3, 1, 0, 12, 12, 8, 4))
+    assert data["state"] == 3 and data["calibrated"] and data["protocol_version"] == 1
