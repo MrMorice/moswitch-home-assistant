@@ -9,7 +9,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from zigpy.exceptions import ZigbeeException
 
-from .const import DOMAIN
+from .const import DOMAIN, TOUCH_FAILURES, TOUCH_FEEDBACK
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -65,7 +65,11 @@ class TouchStatus(ConfigurationStatus):
         if status is None:
             return None
         if status["state"] == 7:
+            if feedback := TOUCH_FEEDBACK.get(status.get("feedback")):
+                return f"{feedback} ({status['learning_taps']}/10)"
             return f"Bitte tippen: {status['learning_taps']}/10"
+        if status["state"] == 4 and (reason := TOUCH_FAILURES.get(status.get("failure_reason"))):
+            return f"Kalibrierung fehlgeschlagen: {reason}"
         return (
             "Nicht kalibriert",
             "Vorbereitung",

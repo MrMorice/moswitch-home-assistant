@@ -336,7 +336,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     from homeassistant.helpers.entity_component import EntityComponent
     from homeassistant.loader import async_setup as setup_loader
 
-    from custom_components.moswitch import button, sensor
+    from custom_components.moswitch import binary_sensor, button, sensor
 
     setup_loader(hass)
     switch = device(hass)
@@ -350,7 +350,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     one.runtime_data = runtime
     components = []
     all_entities = []
-    for domain, platform in [("button", button), ("sensor", sensor)]:
+    for domain, platform in [("button", button), ("sensor", sensor), ("binary_sensor", binary_sensor)]:
         component = EntityComponent(logging.getLogger(__name__), domain, hass)
         component._platforms[domain].config_entry = one
         entities = []
@@ -361,7 +361,8 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     start = next(e for e in all_entities if e.unique_id.endswith("_calibrate_touch"))
     cancel = next(e for e in all_entities if e.unique_id.endswith("_cancel_touch"))
     status = next(e for e in all_entities if e.unique_id.endswith("_touch_calibration"))
-    for entity in (start, cancel, status):
+    contact = next(e for e in all_entities if e.unique_id.endswith("_touch_contact"))
+    for entity in (start, cancel, status, contact):
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     assert len(dr.async_get(hass).devices) == 1
     await start.async_press()
@@ -376,6 +377,34 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     assert state.state == "Bitte tippen: 4/10"
     assert state.attributes["learning_taps"] == 4
     assert state.attributes["weakest_tap_delta_us"] == 9
+    calibration_events = []
+    hass.bus.async_listen("moswitch_calibration", lambda e: calibration_events.append(e.data))
+    def report(feedback, pressed, taps, contacts, rejected, duration):
+        packet = struct.pack("<BBBBIIIII", 3, 7, 1 | (2 if pressed else 0), taps, 30, 12, 8, 4, 9)
+        packet += bytes([feedback, 0, 0, 0])
+        packet += struct.pack("<IIIIIII", contacts, rejected, duration, 18, 0, 2, 12)
+        listener.cluster_command(2, 0x81, packet)
+        listener.cluster_command(2, 0x81, packet)  # Repeated report must not duplicate activity.
+    report(3, True, 4, 5, 0, 0)
+    await hass.async_block_till_done()
+    assert hass.states.get(contact.entity_id).state == "on"
+    assert "Kontakt erkannt" in hass.states.get(status.entity_id).state
+    report(4, False, 5, 5, 0, 1000)
+    await hass.async_block_till_done()
+    assert hass.states.get(contact.entity_id).state == "off"
+    assert hass.states.get(status.entity_id).state == "Tipp gezählt (5/10)"
+    report(6, False, 5, 6, 1, 2100)
+    await hass.async_block_till_done()
+    assert "länger als 2 Sekunden" in hass.states.get(status.entity_id).state
+    assert len(calibration_events) == 3
+    from homeassistant.core import Event
+
+    from custom_components.moswitch.logbook import async_describe_events
+    descriptions = {}
+    async_describe_events(hass, lambda domain, name, cb: descriptions.update({name: (domain, cb)}))
+    domain, describe = descriptions["moswitch_calibration"]
+    assert domain == "zha"
+    assert "Tipp gezählt (5/10)" in describe(Event("moswitch_calibration", calibration_events[1]))["message"]
     runtime.calibrate_touch.side_effect = RuntimeError("busy")
     from homeassistant.exceptions import HomeAssistantError
 
@@ -425,3 +454,12 @@ def test_legacy_status_still_supported():
 
     data = protocol.touch_status(struct.pack("<BBBBIIII", 1, 3, 1, 0, 12, 12, 8, 4))
     assert data["state"] == 3 and data["calibrated"] and data["protocol_version"] == 1
+
+
+@pytest.mark.parametrize("feedback,failure,reserved", [(9, 0, 0), (0, 7, 0), (0, 0, 1)])
+def test_invalid_v3_diagnostics(feedback, failure, reserved):
+    import struct
+
+    payload = struct.pack("<BBBBIIIII", 3, 7, 1, 0, 12, 12, 8, 4, 0)
+    payload += bytes([feedback, failure, reserved, 0]) + bytes(28)
+    assert protocol.touch_status(payload) is None
