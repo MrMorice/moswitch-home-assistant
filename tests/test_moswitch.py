@@ -298,7 +298,11 @@ async def test_gesture_activity_records_every_kind_without_room_or_actions(hass)
         hass, lambda domain, name, callback: descriptions.update({name: (domain, callback)})
     )
     domain, describe = descriptions["moswitch_gesture"]
-    assert domain == "moswitch"
+    assert domain == "zha"
+    from homeassistant.components.logbook.helpers import async_determine_event_types
+
+    hass.data["logbook"] = SimpleNamespace(external_events=descriptions)
+    assert "moswitch_gesture" in async_determine_event_types(hass, None, [switch.id])
     listener = GestureListener(runtime, IEEE)
     for sequence, kind, name, message in [
         (1, 0, "single_press", "Einfach-Tipp erkannt"),

@@ -3,8 +3,6 @@
 from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 
-from .const import DOMAIN
-
 
 @callback
 def async_describe_events(hass, async_describe_event):
@@ -24,4 +22,6 @@ def async_describe_events(hass, async_describe_event):
             "message": messages.get(event.data.get("gesture"), "Bedienung erkannt"),
         }
 
-    async_describe_event(DOMAIN, "moswitch_gesture", describe)
+    # HA's device logbook selects event domains from the owning config entry.
+    # The physical MoSwitch belongs to ZHA, not to this helper integration.
+    async_describe_event("zha", "moswitch_gesture", describe)

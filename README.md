@@ -4,7 +4,7 @@ MoSwitch ergänzt einen kapazitiven Zigbee-Raumschalter um automatische
 Raumzuordnung, Szenenwechsel und konfigurierbare Doppeltipp-Aktionen in Home
 Assistant mit ZHA. Die Integration wird über HACS installiert.
 
-**Entwicklungsstand 0.1.5:** Erste Testversion für die MoSwitch-Bench-Firmware.
+**Entwicklungsstand 0.1.6:** Erste Testversion für die MoSwitch-Bench-Firmware.
 Keine fertige Produktfreigabe. Die Integration wird mit Home Assistant 2026.10.2
 und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet werden.
 
@@ -29,7 +29,7 @@ zusätzliche HA-Toggle-Automationen.
 
 ## Aktivitäten beim Schalter
 
-Ab Version 0.1.5 werden erkannte Gesten im Aktivitätsbereich des bestehenden
+Ab Version 0.1.6 werden erkannte Gesten im Aktivitätsbereich des bestehenden
 ZHA-Geräts protokolliert: **Einfach-Tipp erkannt**, **Doppeltipp erkannt** und
 **Halten erkannt**. Firmware ab 0.1.7 meldet auch Einfach-Tipps; ältere Firmware
 meldet nur Doppel-/Haltetipps. Ein HACS-Integrationsupdate mit anschließendem
