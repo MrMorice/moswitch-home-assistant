@@ -65,6 +65,8 @@ class Runtime:
         self.health = {}
         self.touch_status = {}
         self.touch_received_at = {}
+        self.touch_parameter_locks = {}
+        self.touch_parameter_waiters = {}
         self.rooms = {}
         self.store = Store(hass, 1, DOMAIN)
         self.lock = asyncio.Lock()
@@ -142,6 +144,13 @@ class Runtime:
                             **{key: status[key] for key in fields},
                             "duration_ms": status["last_duration_ms"],
                         })
+                waiter = self.touch_parameter_waiters.get(entry.entry_id)
+                if waiter is not None:
+                    expected, future = waiter
+                    if not future.done() and status["state"] == 3 and all(
+                        status.get(key) == value for key, value in expected.items()
+                    ):
+                        future.set_result(None)
                 self.touch_status[entry.entry_id] = status
                 self.touch_received_at[entry.entry_id] = time.monotonic()
                 async_dispatcher_send(self.hass, f"{DOMAIN}_{entry.entry_id}")
@@ -166,6 +175,38 @@ class Runtime:
 
     async def cancel_touch(self, entry):
         await protocol.cancel_touch(self.listen_switch(entry))
+
+    async def set_touch_parameter(self, entry, key, value):
+        fields = ("baseline_us", "press_delta_us", "release_delta_us")
+        if key not in fields:
+            raise ValueError("Unbekannter Touchparameter")
+        lock = self.touch_parameter_locks.setdefault(entry.entry_id, asyncio.Lock())
+        async with lock:
+            status = self.touch_status.get(entry.entry_id, {})
+            received = self.touch_received_at.get(entry.entry_id, 0)
+            if not status.get("parameters_writable"):
+                raise HomeAssistantError("Zum Einstellen ist Firmware ab 0.1.14 erforderlich")
+            if time.monotonic() - received >= 120 or not status.get("calibrated"):
+                raise HomeAssistantError("Keine aktuelle gültige Touchkalibrierung verfügbar")
+            if status.get("state") in (1, 2, 7) or status.get("pressed"):
+                raise HomeAssistantError("Erst Kalibrierung beenden und den Touch loslassen")
+            values = {field: status[field] for field in fields}
+            values[key] = value
+            if not protocol.valid_touch_parameters(*(values[field] for field in fields)):
+                raise ValueError("Loslassabstand muss kleiner als Einschaltabstand sein")
+            future = asyncio.get_running_loop().create_future()
+            self.touch_parameter_waiters[entry.entry_id] = (values, future)
+            try:
+                await protocol.set_touch_parameters(
+                    self.listen_switch(entry), *(values[field] for field in fields),
+                )
+                # A command ACK alone is insufficient: require the device's
+                # report of the verified persisted tuple before showing success.
+                await asyncio.wait_for(future, timeout=10)
+            finally:
+                self.touch_parameter_waiters.pop(entry.entry_id, None)
+                if not future.done():
+                    future.cancel()
 
     def get_switch(self, entry):
         ieee = ieee_for_device(self.hass, entry.data["device_id"])
@@ -353,6 +394,10 @@ class Runtime:
         self.entries.pop(entry.entry_id, None)
         self.touch_status.pop(entry.entry_id, None)
         self.touch_received_at.pop(entry.entry_id, None)
+        waiter = self.touch_parameter_waiters.pop(entry.entry_id, None)
+        if waiter is not None and not waiter[1].done():
+            waiter[1].set_exception(HomeAssistantError("MoSwitch-Verbindung beendet"))
+        self.touch_parameter_locks.pop(entry.entry_id, None)
         attached = self.listeners.pop(entry.entry_id, None)
         if attached:
             attached[0].remove_listener(attached[1])

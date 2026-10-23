@@ -32,6 +32,27 @@ class Commit(t.Struct):
     revision: t.uint32_t
 
 
+class TouchParameters(t.Struct):
+    baseline: t.uint32_t
+    press_delta: t.uint32_t
+    release_delta: t.uint32_t
+
+
+def valid_touch_parameters(baseline, press_delta, release_delta):
+    return (
+        all(isinstance(value, int) and not isinstance(value, bool)
+            for value in (baseline, press_delta, release_delta))
+        and 1 <= baseline <= 1000
+        and 1 <= release_delta < press_delta < 2000 - baseline
+    )
+
+
+async def set_touch_parameters(device, baseline, press_delta, release_delta):
+    if not valid_touch_parameters(baseline, press_delta, release_delta):
+        raise ValueError("Ungültige Touchparameter: Loslassabstand < Einschaltabstand erforderlich")
+    await request(device, 0x47, TouchParameters, baseline, press_delta, release_delta)
+
+
 class Empty(t.Struct):
     pass
 
@@ -120,12 +141,12 @@ def touch_status(payload):
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version in (2, 3):
+    elif version in (2, 3, 4):
         if len(payload) != (24 if version == 2 else 56) or state > 8 or progress > 10:
             return None
     else:
         return None
-    if version == 3 and (payload[24] > 8 or payload[25] > 6 or payload[26:28] != b"\0\0"):
+    if version >= 3 and (payload[24] > 8 or payload[25] > 6 or payload[26:28] != b"\0\0"):
         return None
     data = {
         "state": state,
@@ -139,8 +160,9 @@ def touch_status(payload):
         "required_taps": 10,
         "weakest_tap_delta_us": struct.unpack("<I", payload[20:24])[0] if version >= 2 else None,
         "protocol_version": version,
+        "parameters_writable": version >= 4,
     }
-    if version == 3:
+    if version >= 3:
         data.update(zip(
             ("detected_contacts", "rejected_contacts", "last_duration_ms", "last_delta_us",
              "invalid_samples", "learning_guard_us", "learning_baseline_us"),

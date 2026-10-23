@@ -129,3 +129,19 @@ erst nach Loslassen. Zulässige Lernkontakte dauern jetzt bis zu zwei Sekunden.
 Das Akzeptieren ungültiger Messungen oder eine dauernde Driftkalibrierung ist
 damit nicht verbunden. Ein Netzstörungsproblem kann weiter Kontakte verhindern;
 die Oberfläche benennt es jetzt. Ältere Statusprotokolle bleiben lesbar.
+
+Ab Integration 0.1.9 sind Touch-Messwert, gespeicherte Baseline, absolute
+Einschalt-/Loslassschwellen, letzte Lernkontaktdauer und verworfene Lernkontakte
+als eigene Sensoren sichtbar. Unter Konfiguration stehen Baseline sowie
+Einschalt- und Loslassabstand als ganzzahlige µs-Felder. Eine größere
+Einschaltdifferenz macht den Touch weniger empfindlich. Der Loslassabstand
+muss kleiner bleiben; zum Loslassen muss der Messwert entsprechend sinken.
+Die absoluten Schwellen sind jeweils Baseline plus Abstand.
+
+Schreiben erfordert Firmware 0.1.14; bei älterer Firmware bleiben die Einsteller
+nicht verfügbar, die vorhandenen Messwerte bleiben lesbar. Während Kalibrierung
+oder Berührung werden Änderungen abgelehnt. Werte werden gemeinsam geprüft,
+im EEPROM-Journal gespeichert und zurückgelesen. HA zeigt keinen optimistischen
+Erfolg, sondern verlangt die Rückmeldung des gespeicherten Tupels. Ein ACK ohne
+Wertebestätigung reicht nicht. Die angezeigten Sensorwerte folgen Statusberichten;
+zusätzliche Sensoren erzeugen keine eigenen Funkabfragen.
