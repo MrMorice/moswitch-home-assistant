@@ -337,6 +337,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     from homeassistant.loader import async_setup as setup_loader
 
     from custom_components.moswitch import binary_sensor, button, number, sensor
+    from custom_components.moswitch import switch as touch_switch
 
     setup_loader(hass)
     switch = device(hass)
@@ -350,7 +351,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     one.runtime_data = runtime
     components = []
     all_entities = []
-    for domain, platform in [("button", button), ("sensor", sensor), ("binary_sensor", binary_sensor), ("number", number)]:
+    for domain, platform in [("button", button), ("sensor", sensor), ("binary_sensor", binary_sensor), ("number", number), ("switch", touch_switch)]:
         component = EntityComponent(logging.getLogger(__name__), domain, hass)
         component._platforms[domain].config_entry = one
         entities = []
@@ -366,7 +367,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     parameters = [e for e in all_entities if "_touch_parameter_" in e.unique_id]
     measurements = [e for e in all_entities if "_touch_measurement_" in e.unique_id]
-    assert len(parameters) == 3 and len(measurements) == 6
+    assert len(parameters) == 8 and len(measurements) == 7
     for entity in [*parameters, *measurements]:
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     assert len(dr.async_get(hass).devices) == 1
@@ -407,7 +408,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     assert len(calibration_events) == 3
     report(6, False, 5, 6, 1, 2100, version=4)
     await hass.async_block_till_done()
-    assert all(e.available for e in parameters)
+    assert all(e.available for e in parameters if e.key not in protocol.TUNING_FIELDS)
     press_parameter = next(e for e in parameters if e.key == "press_delta_us")
     assert press_parameter.native_min_value == 5 and press_parameter.native_max_value == 1987
     from homeassistant.core import Event
@@ -418,6 +419,22 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     domain, describe = descriptions["moswitch_calibration"]
     assert domain == "zha"
     assert "Tipp gezählt (5/10)" in describe(Event("moswitch_calibration", calibration_events[1]))["message"]
+    runtime.test_touch = AsyncMock()
+    runtime.baseline_touch = AsyncMock()
+    test_mode = next(e for e in all_entities if e.unique_id.endswith("_touch_test_mode"))
+    baseline_button = next(e for e in all_entities if e.unique_id.endswith("_baseline_touch"))
+    listener.cluster_command(3, 0x81, v5_packet())
+    await hass.async_block_till_done()
+    assert test_mode.available and test_mode.is_on and all(e.available for e in parameters)
+    assert not baseline_button.available
+    assert er.async_get(hass).async_get(test_mode.entity_id).device_id == switch.id
+    listener.cluster_command(4, 0x81, v5_packet(state=9, flags=29))
+    await hass.async_block_till_done()
+    assert baseline_button.available and "Ruhemessung starten" in status.native_value
+    await baseline_button.async_press()
+    runtime.baseline_touch.assert_awaited_once_with(one)
+    await test_mode.async_turn_off()
+    runtime.test_touch.assert_awaited_once_with(one, False)
     runtime.calibrate_touch.side_effect = RuntimeError("busy")
     from homeassistant.exceptions import HomeAssistantError
 
@@ -537,3 +554,91 @@ async def test_touch_parameter_requires_persisted_echo_and_preserves_concurrent_
 
     with pytest.raises(HomeAssistantError):
         await runtime.set_touch_parameter(one, "baseline_us", 15)
+
+
+def v5_packet(state=10, flags=23, tuning=(8, 12, 3, 0, 100)):
+    import struct
+
+    return (struct.pack("<BBBBIIIII", 5, state, flags, 0, 30, 12, 8, 4, 0)
+            + bytes(32) + struct.pack("<IBBBBHH", 29, *tuning, 0))
+
+
+def test_v5_separates_raw_filtered_confirmed_contact_and_validates_tuning():
+    status = protocol.touch_status(v5_packet())
+    assert status["test_mode"] and status["pressed"] and status["measurement_valid"]
+    assert status["raw_us"] == 30 and status["filtered_us"] == 29
+    assert status["press_debounce_ms"] == 8
+    for values in ((0, 12, 3, 0, 100), (8, 201, 3, 0, 100), (8, 12, 2, 0, 100),
+                   (8, 12, 9, 0, 100), (8, 12, 3, 31, 100), (8, 12, 3, 0, 501)):
+        assert protocol.touch_status(v5_packet(tuning=values)) is None
+    assert protocol.touch_status(v5_packet(flags=9)) is None  # Training requires quiet.
+    assert protocol.touch_status(v5_packet(state=11)) is None
+    assert protocol.touch_status(v5_packet()[:-1]) is None
+    assert protocol.touch_status(v5_packet()[:-1] + b"\x01") is None
+
+
+@pytest.mark.asyncio
+async def test_v5_controls_and_tuning_wire_format():
+    import struct
+
+    calls = []
+    async def send(general, command, schema, *args, **kwargs):
+        calls.append((command, schema(*args).serialize()))
+        return SimpleNamespace(status=foundation.Status.SUCCESS)
+    dev = SimpleNamespace(endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})})
+    await protocol.diagnose_touch(dev)
+    await protocol.baseline_touch(dev)
+    await protocol.normal_touch(dev)
+    await protocol.set_touch_tuning(dev, 20, 50, 5, 12, 100)
+    assert calls == [(0x48, b""), (0x4A, b""), (0x49, b""), (0x4B, struct.pack("<BBBBHH", 20, 50, 5, 12, 100, 0))]
+    with pytest.raises(ValueError):
+        await protocol.set_touch_tuning(dev, 20, 50, 2, 12, 100)
+
+
+@pytest.mark.asyncio
+async def test_quiet_guard_survives_failed_cancelled_and_successful_training(hass, monkeypatch):
+    runtime = Runtime(hass)
+    dev = device(hass)
+    one = entry("moswitch", {"device_id": dev.id}, unique_id=IEEE)
+    runtime.entries = {one.entry_id: one}
+    runtime.listen_switch = lambda entry: object()
+    monkeypatch.setattr(protocol, "calibrate_touch", AsyncMock())
+    monkeypatch.setattr(protocol, "normal_touch", AsyncMock())
+    events = []
+    hass.bus.async_listen("moswitch_gesture", lambda event: events.append(event.data))
+    await runtime.calibrate_touch(one)
+    await runtime.gesture(IEEE, 1)
+    for state in (9, 1, 2, 7, 4, 8, 6, 3):
+        runtime.touch_report(IEEE, protocol.touch_status(v5_packet(state=state, flags=29)))
+        for kind in (0, 1, 2):
+            await runtime.gesture(IEEE, kind)
+    await runtime.test_touch(one, False)
+    await runtime.gesture(IEEE, 2)  # ACK cannot clear guard without device status.
+    await hass.async_block_till_done()
+    assert not events
+    runtime.touch_report(IEEE, protocol.touch_status(v5_packet(state=3, flags=17)))
+    await runtime.gesture(IEEE, 0)
+    await hass.async_block_till_done()
+    assert len(events) == 1 and events[0]["gesture"] == "single_press"
+
+
+@pytest.mark.asyncio
+async def test_tuning_persisted_echo_while_held_in_diagnosis(hass, monkeypatch):
+    runtime = Runtime(hass)
+    dev = device(hass)
+    one = entry("moswitch", {"device_id": dev.id}, unique_id=IEEE)
+    runtime.entries = {one.entry_id: one}
+    runtime.listen_switch = lambda entry: object()
+    status = protocol.touch_status(v5_packet())
+    runtime.touch_report(IEEE, status)
+    setter = AsyncMock()
+    monkeypatch.setattr(protocol, "set_touch_tuning", setter)
+    task = asyncio.create_task(runtime.set_touch_parameter(one, "gap_grace_ms", 12))
+    await asyncio.sleep(0)
+    setter.assert_awaited_once()
+    runtime.touch_report(IEEE, status)
+    await asyncio.sleep(0)
+    assert not task.done()
+    runtime.touch_report(IEEE, dict(status, gap_grace_ms=12))
+    await task
+    assert runtime.touch_status[one.entry_id]["pressed"]

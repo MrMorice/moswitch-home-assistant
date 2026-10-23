@@ -145,3 +145,14 @@ im EEPROM-Journal gespeichert und zurückgelesen. HA zeigt keinen optimistischen
 Erfolg, sondern verlangt die Rückmeldung des gespeicherten Tupels. Ein ACK ohne
 Wertebestätigung reicht nicht. Die angezeigten Sensorwerte folgen Statusberichten;
 zusätzliche Sensoren erzeugen keine eigenen Funkabfragen.
+
+Ab Integration **0.1.10** mit Firmware **0.1.18**: „Touch-Testmodus“ erlaubt
+Diagnose auch bei gehaltener Scheibe. Alle normalen Schalt-/Szenen-/Medienaktionen
+bleiben im Testmodus gesperrt, auch nach Lernfehler oder Abbruch. Zum Einlernen
+„Touch kalibrieren“, vollständig loslassen und „Touch-Ruhemessung starten“.
+Vier Sekunden unberührt lassen, dann zehnmal tippen. Anschließend Testmodus
+explizit ausschalten. Acht Zahlenfelder enthalten drei µs-Schwellwerte und fünf
+Filter-/Zeitparameter; Rohwert, gefilterter Wert und bestätigter Touchkontakt
+werden getrennt angezeigt. Die Aussetzer-Toleranz ist begrenzt auf 0–30 ms;
+ungültige Messungen können keinen neuen Kontakt bestätigen. Medianfenster nur
+1/3/5/7. Änderungen werden erst nach Speicherbestätigung des Geräts übernommen.

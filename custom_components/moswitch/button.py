@@ -4,12 +4,15 @@ from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from zigpy.exceptions import ZigbeeException
+
+from .const import DOMAIN
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     device = dr.async_get(hass).async_get(entry.data["device_id"])
-    entities = [CalibrateTouch(entry), CancelTouch(entry)]
+    entities = [CalibrateTouch(entry), CancelTouch(entry), BaselineTouch(entry)]
     for entity in entities:
         # Reuse the selected physical device. Registering its identifiers with
         # a second config entry would create a separate device in HA 2026.10.
@@ -40,7 +43,7 @@ class CalibrateTouch(ButtonEntity):
         ) as err:
             raise HomeAssistantError(
                 "Touchkalibrierung nicht gestartet: Firmware ab 0.1.8 für zehn Tipps erforderlich; "
-                "Schalter muss erreichbar sein und darf nicht beschäftigt oder berührt sein."
+                "Schalter muss erreichbar sein und darf kein Firmwareupdate installieren."
             ) from err
 
 
@@ -64,3 +67,26 @@ class CancelTouch(CalibrateTouch):
             RuntimeError,
         ) as err:
             raise HomeAssistantError("Keine laufende Kalibrierung erreichbar.") from err
+
+
+class BaselineTouch(CalibrateTouch):
+    def __init__(self, entry):
+        super().__init__(entry)
+        self._attr_unique_id = f"{entry.unique_id}_baseline_touch"
+        self._attr_name = f"{entry.title} Touch-Ruhemessung starten"
+
+    @property
+    def available(self):
+        status = self.entry.runtime_data.touch_status.get(self.entry.entry_id, {})
+        return status.get("protocol_version", 0) >= 5 and status.get("state") == 9
+
+    async def async_added_to_hass(self):
+        self.async_on_remove(async_dispatcher_connect(
+            self.hass, f"{DOMAIN}_{self.entry.entry_id}", self.async_write_ha_state,
+        ))
+
+    async def async_press(self):
+        try:
+            await self.entry.runtime_data.baseline_touch(self.entry)
+        except (ZigbeeException, TimeoutError, ValueError, KeyError, RuntimeError) as err:
+            raise HomeAssistantError("Ruhemessung nicht gestartet. Erst Touch kalibrieren wählen.") from err
