@@ -14,8 +14,18 @@ from .const import DOMAIN, TOUCH_FAILURES, TOUCH_FEEDBACK
 
 async def async_setup_entry(hass, entry, async_add_entities):
     touch = TouchStatus(entry)
-    touch.device_entry = dr.async_get(hass).async_get(entry.data["device_id"])
-    async_add_entities([ConfigurationStatus(entry), touch])
+    device = dr.async_get(hass).async_get(entry.data["device_id"])
+    measurements = [
+        TouchMeasurement(entry, "raw_us", "Touch-Messwert", "µs"),
+        TouchMeasurement(entry, "baseline_us", "Touch-Baseline", "µs"),
+        TouchMeasurement(entry, "press_threshold_us", "Touch-Einschaltschwelle", "µs"),
+        TouchMeasurement(entry, "release_threshold_us", "Touch-Loslassschwelle", "µs"),
+        TouchMeasurement(entry, "last_duration_ms", "Touch-Letzte Kontaktdauer", "ms"),
+        TouchMeasurement(entry, "rejected_contacts", "Touch-Verworfene Kontakte", None),
+    ]
+    for entity in [touch, *measurements]:
+        entity.device_entry = device
+    async_add_entities([ConfigurationStatus(entry), touch, *measurements])
 
 
 class ConfigurationStatus(SensorEntity):
@@ -101,3 +111,29 @@ class TouchStatus(ConfigurationStatus):
         ):
             # Old firmware rejects the command. Never display an ACK as success.
             self._query_failed = True
+
+
+class TouchMeasurement(TouchStatus):
+    _attr_should_poll = False
+    _attr_entity_category = None
+
+    def __init__(self, entry, key, label, unit):
+        super().__init__(entry)
+        self.key = key
+        self._attr_unique_id = f"{entry.unique_id}_touch_measurement_{key}"
+        self._attr_name = f"{entry.title} {label}"
+        self._attr_native_unit_of_measurement = unit
+
+    @property
+    def native_value(self):
+        status = self.entry.runtime_data.touch_status.get(self.entry.entry_id, {})
+        if self.key in ("press_threshold_us", "release_threshold_us"):
+            delta = "press_delta_us" if self.key == "press_threshold_us" else "release_delta_us"
+            if "baseline_us" in status and delta in status:
+                return status["baseline_us"] + status[delta]
+            return None
+        return status.get(self.key)
+
+    @property
+    def extra_state_attributes(self):
+        return None

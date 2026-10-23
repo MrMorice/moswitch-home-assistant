@@ -336,7 +336,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     from homeassistant.helpers.entity_component import EntityComponent
     from homeassistant.loader import async_setup as setup_loader
 
-    from custom_components.moswitch import binary_sensor, button, sensor
+    from custom_components.moswitch import binary_sensor, button, number, sensor
 
     setup_loader(hass)
     switch = device(hass)
@@ -350,7 +350,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     one.runtime_data = runtime
     components = []
     all_entities = []
-    for domain, platform in [("button", button), ("sensor", sensor), ("binary_sensor", binary_sensor)]:
+    for domain, platform in [("button", button), ("sensor", sensor), ("binary_sensor", binary_sensor), ("number", number)]:
         component = EntityComponent(logging.getLogger(__name__), domain, hass)
         component._platforms[domain].config_entry = one
         entities = []
@@ -363,6 +363,11 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     status = next(e for e in all_entities if e.unique_id.endswith("_touch_calibration"))
     contact = next(e for e in all_entities if e.unique_id.endswith("_touch_contact"))
     for entity in (start, cancel, status, contact):
+        assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
+    parameters = [e for e in all_entities if "_touch_parameter_" in e.unique_id]
+    measurements = [e for e in all_entities if "_touch_measurement_" in e.unique_id]
+    assert len(parameters) == 3 and len(measurements) == 6
+    for entity in [*parameters, *measurements]:
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     assert len(dr.async_get(hass).devices) == 1
     await start.async_press()
@@ -377,10 +382,13 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     assert state.state == "Bitte tippen: 4/10"
     assert state.attributes["learning_taps"] == 4
     assert state.attributes["weakest_tap_delta_us"] == 9
+    assert all(not e.available for e in parameters)
+    threshold = next(e for e in measurements if e.key == "press_threshold_us")
+    assert hass.states.get(threshold.entity_id).state == "20"
     calibration_events = []
     hass.bus.async_listen("moswitch_calibration", lambda e: calibration_events.append(e.data))
-    def report(feedback, pressed, taps, contacts, rejected, duration):
-        packet = struct.pack("<BBBBIIIII", 3, 7, 1 | (2 if pressed else 0), taps, 30, 12, 8, 4, 9)
+    def report(feedback, pressed, taps, contacts, rejected, duration, version=3):
+        packet = struct.pack("<BBBBIIIII", version, 7, 1 | (2 if pressed else 0), taps, 30, 12, 8, 4, 9)
         packet += bytes([feedback, 0, 0, 0])
         packet += struct.pack("<IIIIIII", contacts, rejected, duration, 18, 0, 2, 12)
         listener.cluster_command(2, 0x81, packet)
@@ -397,6 +405,11 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     await hass.async_block_till_done()
     assert "länger als 2 Sekunden" in hass.states.get(status.entity_id).state
     assert len(calibration_events) == 3
+    report(6, False, 5, 6, 1, 2100, version=4)
+    await hass.async_block_till_done()
+    assert all(e.available for e in parameters)
+    press_parameter = next(e for e in parameters if e.key == "press_delta_us")
+    assert press_parameter.native_min_value == 5 and press_parameter.native_max_value == 1987
     from homeassistant.core import Event
 
     from custom_components.moswitch.logbook import async_describe_events
@@ -463,3 +476,64 @@ def test_invalid_v3_diagnostics(feedback, failure, reserved):
     payload = struct.pack("<BBBBIIIII", 3, 7, 1, 0, 12, 12, 8, 4, 0)
     payload += bytes([feedback, failure, reserved, 0]) + bytes(28)
     assert protocol.touch_status(payload) is None
+
+
+@pytest.mark.asyncio
+async def test_touch_parameters_wire_and_bounds():
+    import struct
+
+    calls = []
+    async def send(general, command, schema, *args, **kwargs):
+        calls.append((command, schema(*args).serialize()))
+        return SimpleNamespace(status=foundation.Status.SUCCESS)
+    dev = SimpleNamespace(endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})})
+    await protocol.set_touch_parameters(dev, 13, 8, 4)
+    assert calls == [(0x47, struct.pack("<III", 13, 8, 4))]
+    for values in [(0, 8, 4), (1001, 8, 4), (13, 4, 4), (13, 2000, 4), (13, 8, 0), (True, 8, 4)]:
+        with pytest.raises(ValueError):
+            await protocol.set_touch_parameters(dev, *values)
+    assert len(calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_touch_parameter_requires_persisted_echo_and_preserves_concurrent_changes(hass, monkeypatch):
+    import time
+
+    runtime = Runtime(hass)
+    switch = device(hass)
+    one = entry("moswitch", {"device_id": switch.id}, unique_id=IEEE)
+    runtime.entries = {one.entry_id: one}
+    runtime.listen_switch = lambda entry: object()
+    status = dict(state=3, calibrated=True, pressed=False, parameters_writable=True,
+                  baseline_us=13, press_delta_us=8, release_delta_us=4)
+    runtime.touch_report(IEEE, status)
+    calls = []
+    async def send(dev, baseline, press, release):
+        calls.append((baseline, press, release))
+    monkeypatch.setattr(protocol, "set_touch_parameters", send)
+    task = asyncio.create_task(runtime.set_touch_parameter(one, "press_delta_us", 20))
+    await asyncio.sleep(0)
+    assert not task.done() and runtime.touch_status[one.entry_id]["press_delta_us"] == 8
+    # An old report must not turn an ACK into a false success.
+    runtime.touch_report(IEEE, status.copy())
+    await asyncio.sleep(0)
+    assert not task.done()
+    second = asyncio.create_task(runtime.set_touch_parameter(one, "release_delta_us", 10))
+    runtime.touch_report(IEEE, dict(status, press_delta_us=20))
+    await task
+    await asyncio.sleep(0)
+    assert calls == [(13, 20, 4), (13, 20, 10)]
+    runtime.touch_report(IEEE, dict(status, press_delta_us=20, release_delta_us=10))
+    await second
+    assert not runtime.touch_parameter_waiters
+    # Rejected and unconfirmed commands do not optimistically replace values.
+    monkeypatch.setattr(protocol, "set_touch_parameters", AsyncMock(side_effect=RuntimeError("rejected")))
+    with pytest.raises(RuntimeError):
+        await runtime.set_touch_parameter(one, "baseline_us", 15)
+    assert runtime.touch_status[one.entry_id]["baseline_us"] == 13
+    assert not runtime.touch_parameter_waiters
+    runtime.touch_received_at[one.entry_id] = time.monotonic() - 121
+    from homeassistant.exceptions import HomeAssistantError
+
+    with pytest.raises(HomeAssistantError):
+        await runtime.set_touch_parameter(one, "baseline_us", 15)
