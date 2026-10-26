@@ -367,7 +367,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     parameters = [e for e in all_entities if "_touch_parameter_" in e.unique_id]
     measurements = [e for e in all_entities if "_touch_measurement_" in e.unique_id]
-    assert len(parameters) == 8 and len(measurements) == 7
+    assert len(parameters) == 8 and len(measurements) == 9
     for entity in [*parameters, *measurements]:
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     assert len(dr.async_get(hass).devices) == 1
@@ -676,3 +676,139 @@ async def test_calibration_button_exposes_actual_failure_and_does_not_claim_old_
         await CalibrateTouch(one).async_press()
     assert "Firmware ab" not in str(error.value)
     assert "bereits erreicht" in str(error.value)
+
+
+def v6_packet(state=7, contacts=0, progress=0, remaining=0, feedback=2):
+    import struct
+
+    packet = bytearray(v5_packet(state=state, flags=29))
+    packet[0] = 6
+    packet[3] = progress
+    packet[24] = feedback
+    packet[28:32] = struct.pack('<I', contacts)
+    packet[66:68] = struct.pack('<H', remaining)
+    return bytes(packet)
+
+
+def test_v6_inactivity_clock_and_older_protocols():
+    from custom_components.moswitch.touch_wizard import learning_message
+
+    waiting = protocol.touch_status(v6_packet())
+    assert waiting['learning_remaining_s'] == 0
+    assert 'Zeit lassen' in learning_message(waiting)
+    active = protocol.touch_status(v6_packet(contacts=4, progress=3, remaining=89, feedback=7))
+    assert active['learning_remaining_s'] == 89
+    assert '3 von 10' in learning_message(active) and 'Signal zu schwach' in learning_message(active)
+    assert '89 Sekunden' in learning_message(active)
+    assert protocol.touch_status(v6_packet(remaining=91, contacts=1)) is None
+    assert protocol.touch_status(v6_packet(remaining=90)) is None
+    assert protocol.touch_status(v6_packet(state=3, contacts=10, progress=10, remaining=90)) is None
+    assert 'learning_remaining_s' not in protocol.touch_status(v5_packet())
+
+
+@pytest.mark.asyncio
+async def test_touch_wizard_uses_reports_and_retains_options(hass):
+    from custom_components.moswitch.config_flow import MoSwitchOptionsFlow
+
+    switch = device(hass)
+    one = entry('moswitch', {'device_id': switch.id}, {'double_action': 'none'}, IEEE)
+    hass.config_entries._entries[one.entry_id] = one
+    runtime = Runtime(hass)
+    runtime.entries[one.entry_id] = one
+    one.runtime_data = runtime
+    runtime.touch_report(IEEE, protocol.touch_status(v6_packet(state=10)))
+    flow = MoSwitchOptionsFlow()
+    flow.hass, flow.handler = hass, one.entry_id
+    async def report(state):
+        runtime.touch_report(IEEE, protocol.touch_status(v6_packet(state=state)))
+    async def query(e):
+        await report(10)
+    async def prepare(e):
+        await report(9)
+    async def baseline(e):
+        await report(1)
+    runtime.query_touch = AsyncMock(side_effect=query)
+    runtime.calibrate_touch = AsyncMock(side_effect=prepare)
+    runtime.baseline_touch = AsyncMock(side_effect=baseline)
+    runtime.cancel_touch = AsyncMock()
+    result = await flow.async_step_init()
+    assert result['menu_options'] == ['touch_setup', 'actions']
+    result = await flow.async_step_touch_setup({})
+    assert result['step_id'] == 'touch_baseline'
+    runtime.calibrate_touch.assert_awaited_once()
+    result = await flow.async_step_touch_baseline({})
+    assert result['type'] == 'progress'
+    task = result['progress_task']
+    await asyncio.sleep(0)
+    runtime.touch_report(IEEE, protocol.touch_status(v6_packet(contacts=3, progress=2, remaining=88)))
+    await asyncio.sleep(0)
+    result = await flow.async_step_touch_watch()
+    assert '2 von 10' in result['description_placeholders']['status']
+    assert not task.done()
+    runtime.touch_report(IEEE, protocol.touch_status(v6_packet(state=3, contacts=10, progress=10)))
+    await task
+    result = await flow.async_step_touch_watch()
+    assert result['step_id'] == 'touch_result'
+    result = await flow.async_step_touch_result()
+    assert 'gespeichert' in result['description_placeholders']['status']
+    assert one.entry_id in runtime.touch_quiet
+    result = await flow.async_step_touch_result({'action': 'keep_test'})
+    assert result['data'] == {'double_action': 'none'}
+    assert one.entry_id in runtime.touch_quiet
+    async def activate(e, enabled):
+        assert enabled is False
+        packet = bytearray(v6_packet(state=3, contacts=10, progress=10))
+        packet[2] = 17
+        runtime.touch_report(IEEE, protocol.touch_status(packet))
+    runtime.test_touch = AsyncMock(side_effect=activate)
+    result = await flow.async_step_touch_result({'action': 'activate'})
+    assert result['data'] == dict(one.options)
+    assert one.entry_id not in runtime.touch_quiet
+
+
+@pytest.mark.asyncio
+async def test_touch_wizard_close_cancels_learning_but_keeps_quiet(hass):
+    from custom_components.moswitch.config_flow import MoSwitchOptionsFlow
+
+    switch = device(hass)
+    one = entry('moswitch', {'device_id': switch.id}, unique_id=IEEE)
+    hass.config_entries._entries[one.entry_id] = one
+    runtime = Runtime(hass)
+    runtime.entries[one.entry_id] = one
+    one.runtime_data = runtime
+    runtime.cancel_touch = AsyncMock()
+    runtime.touch_report(IEEE, protocol.touch_status(v6_packet()))
+    flow = MoSwitchOptionsFlow()
+    flow.hass, flow.handler = hass, one.entry_id
+    task = asyncio.create_task(flow._watch_touch())
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    runtime.cancel_touch.assert_awaited_once_with(one)
+    assert one.entry_id in runtime.touch_quiet
+
+
+@pytest.mark.asyncio
+async def test_touch_wizard_rejects_old_firmware_and_reports_command_failure(hass):
+    from custom_components.moswitch.config_flow import MoSwitchOptionsFlow
+
+    switch = device(hass)
+    one = entry('moswitch', {'device_id': switch.id}, unique_id=IEEE)
+    hass.config_entries._entries[one.entry_id] = one
+    runtime = Runtime(hass)
+    runtime.entries[one.entry_id] = one
+    one.runtime_data = runtime
+    flow = MoSwitchOptionsFlow()
+    flow.hass, flow.handler = hass, one.entry_id
+    async def old_query(e):
+        runtime.touch_report(IEEE, protocol.touch_status(v5_packet()))
+    runtime.query_touch = AsyncMock(side_effect=old_query)
+    runtime.calibrate_touch = AsyncMock()
+    result = await flow.async_step_touch_setup({})
+    assert result['errors'] == {'base': 'touch_upgrade'}
+    runtime.calibrate_touch.assert_not_awaited()
+    runtime.query_touch = AsyncMock(side_effect=TimeoutError())
+    result = await flow.async_step_touch_setup({})
+    assert result['errors'] == {'base': 'touch_connection'}
+    runtime.calibrate_touch.assert_not_awaited()
