@@ -42,8 +42,9 @@ class CalibrateTouch(ButtonEntity):
             RuntimeError,
         ) as err:
             raise HomeAssistantError(
-                "Touchkalibrierung nicht gestartet: Firmware ab 0.1.8 für zehn Tipps erforderlich; "
-                "Schalter muss erreichbar sein und darf kein Firmwareupdate installieren."
+                "Touchkalibrierung nicht bestätigt: "
+                f"{type(err).__name__}: {str(err) or 'Zeitüberschreitung bei der Zigbee-Anfrage'}. "
+                "Der Befehl kann das Gerät bereits erreicht haben; Touchstatus prüfen."
             ) from err
 
 

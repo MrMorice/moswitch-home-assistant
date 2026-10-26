@@ -5,6 +5,7 @@ commands stage a complete configuration before replacing the active one.
 """
 
 import hashlib
+import logging
 import struct
 from dataclasses import dataclass
 
@@ -12,6 +13,8 @@ import zigpy.types as t
 from zigpy.zcl import foundation
 
 from .const import ENDPOINT, MANUFACTURER, MAX_TARGETS, RESTORE_SCENE
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Begin(t.Struct):
@@ -129,6 +132,7 @@ async def request(device, command: int, schema, *args):
     if status is None and isinstance(response, (list, tuple)) and len(response) >= 2:
         status = response[1]
     if status != foundation.Status.SUCCESS:
+        _LOGGER.warning("MoSwitch command 0x%02x: unexpected acknowledgement %r", command, response)
         raise RuntimeError(f"MoSwitch command 0x{command:02x} rejected: {response!r}")
 
 

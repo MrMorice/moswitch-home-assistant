@@ -62,13 +62,14 @@ class TouchStatus(ConfigurationStatus):
         super().__init__(entry)
         self._attr_unique_id = f"{entry.unique_id}_touch_calibration"
         self._attr_name = f"{entry.title} Touchkalibrierung"
-        self._query_failed = False
+        self._query_failed_at = 0
 
     @property
     def available(self):
         runtime = self.entry.runtime_data
         received = runtime.touch_received_at.get(self.entry.entry_id)
-        return not self._query_failed and received is not None and time.monotonic() - received < 120
+        return (received is not None and received > self._query_failed_at
+                and time.monotonic() - received < 120)
 
     @property
     def native_value(self):
@@ -107,7 +108,7 @@ class TouchStatus(ConfigurationStatus):
     async def async_update(self):
         try:
             await self.entry.runtime_data.query_touch(self.entry)
-            self._query_failed = False
+            self._query_failed_at = 0
         except (
             HomeAssistantError,
             ZigbeeException,
@@ -117,7 +118,7 @@ class TouchStatus(ConfigurationStatus):
             RuntimeError,
         ):
             # Old firmware rejects the command. Never display an ACK as success.
-            self._query_failed = True
+            self._query_failed_at = time.monotonic()
 
 
 class TouchMeasurement(TouchStatus):
