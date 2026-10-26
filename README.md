@@ -173,3 +173,14 @@ Statusprotokolle weiterhin lesbar. Zwei zusätzliche Sensoren zeigen gezählte
 Lerntipps und die Inaktivitätsrestzeit; vor dem ersten Tipp ist die Restzeit 0
 (Frist noch nicht gestartet). Der geführte Dialog verlangt Protokoll 6, damit er
 keine falschen Versprechen über das Zeitlimit älterer Firmware macht.
+
+Ab **0.1.14** enthält jedes zugeordnete ZHA-Gerät einen internen Konfigurationslink
+zur MoSwitch-Integration mit seiner eigenen Eintrags-ID. Auf der Geräteseite über
+„Konfiguration öffnen“ / „Besuchen“ (je nach HA-Frontend auch im Gerätemenü)
+öffnen: HA hebt dort genau diesen Schalter hervor. Sein Zahnrad öffnet den
+Assistenten. Der Link öffnet keinen Optionsdialog automatisch. Auch bei mehreren
+Schaltern bleiben Zuordnung, Lernzustand und Parameter pro Eintrag getrennt.
+Dialogtitel zeigen den aktuellen Gerätenamen; benutzerdefinierte Namen haben
+Vorrang. Das ZHA-Gerät, seine Besitzer-Integration, Raumzuordnung und Entitäten
+bleiben erhalten. Beim Löschen des MoSwitch-Eintrags wird dessen eigener Link
+entfernt; beim bloßen Neuladen bleibt er verfügbar.

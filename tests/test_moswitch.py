@@ -812,3 +812,48 @@ async def test_touch_wizard_rejects_old_firmware_and_reports_command_failure(has
     result = await flow.async_step_touch_setup({})
     assert result['errors'] == {'base': 'touch_connection'}
     runtime.calibrate_touch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_device_configuration_links_are_per_switch_without_duplicate_devices(hass):
+    from custom_components.moswitch import async_remove_entry
+    from custom_components.moswitch.config_flow import MoSwitchOptionsFlow
+    from custom_components.moswitch.device_configuration import (
+        attach_configuration_link,
+        configuration_url,
+    )
+
+    area = ar.async_get(hass).async_create('Wohnzimmer').id
+    first = device(hass, area)
+    second = device(hass, ieee='00:12:4b:00:01:02:03:05')
+    registry = dr.async_get(hass)
+    registry.async_update_device(first.id, name_by_user='Links am Sofa')
+    first_owner = first.config_entry_id
+    second_owner = second.config_entry_id
+    one = entry('moswitch', {'device_id': first.id}, unique_id=IEEE)
+    two = entry('moswitch', {'device_id': second.id}, unique_id='00:12:4b:00:01:02:03:05')
+    for config in (one, two):
+        hass.config_entries._entries[config.entry_id] = config
+        attach_configuration_link(hass, config)
+    assert len(registry.devices) == 2
+    first = registry.async_get(first.id)
+    second = registry.async_get(second.id)
+    assert first.config_entry_id == first_owner and first.area_id == area
+    assert second.config_entry_id == second_owner
+    assert first.configuration_url == configuration_url(one)
+    assert second.configuration_url == configuration_url(two)
+    assert first.configuration_url != second.configuration_url
+    assert one.entry_id in first.configuration_url and two.entry_id not in first.configuration_url
+    flow = MoSwitchOptionsFlow()
+    flow.hass, flow.handler = hass, one.entry_id
+    result = await flow.async_step_init()
+    assert result['description_placeholders']['device'] == 'Links am Sofa'
+    result = await flow.async_step_touch_setup()
+    assert result['description_placeholders']['device'] == 'Links am Sofa'
+    await async_remove_entry(hass, one)
+    assert registry.async_get(first.id).configuration_url is None
+    assert registry.async_get(second.id).configuration_url == configuration_url(two)
+    assert len(registry.devices) == 2
+    registry.async_update_device(second.id, configuration_url='https://example.com/other')
+    await async_remove_entry(hass, two)
+    assert registry.async_get(second.id).configuration_url == 'https://example.com/other'
