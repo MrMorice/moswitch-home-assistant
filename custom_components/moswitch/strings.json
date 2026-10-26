@@ -31,26 +31,27 @@
         }
       },
       "init": {
-        "title": "MoSwitch einstellen",
+        "title": "MoSwitch einstellen · {device}",
         "menu_options": {
           "touch_setup": "Touchfläche einlernen",
           "actions": "Doppeltipp und Szenen einstellen"
-        }
+        },
+        "description": "Diese Einstellungen gelten für {device}."
       },
       "touch_setup": {
-        "title": "Touchfläche einlernen · 1/3",
+        "title": "Touchfläche einlernen · 1/3 · {device}",
         "description": "Die Scheibe zuerst vollständig montieren. Während des Einlernens bleiben Licht-, Szenen- und Medienaktionen gesperrt.\n\nMit Weiter bereitest du den Schalter vor. Im nächsten Schritt bestätigst du, dass die Fläche unberührt ist. Die bisherigen Kalibrierwerte bleiben bis zum erfolgreichen Abschluss erhalten.\n\nBeim Schließen bleibt der stille Testmodus aktiv."
       },
       "touch_baseline": {
-        "title": "Fläche loslassen · 2/3",
+        "title": "Fläche loslassen · 2/3 · {device}",
         "description": "Nimm jetzt den Finger vollständig von der Fläche.\n\nDrücke erst dann Weiter. Der Schalter misst etwa vier Sekunden ohne Berührung. Anschließend pulsiert die LED und du kannst zehnmal kurz tippen. Vor dem ersten Tipp läuft kein Zeitlimit."
       },
       "touch_watch": {
-        "title": "Zehn Tipps einlernen · 3/3",
+        "title": "Zehn Tipps einlernen · 3/3 · {device}",
         "description": "{status}\n\nLicht-, Szenen- und Medienaktionen bleiben gesperrt. Beim Schließen wird der Lernvorgang abgebrochen; der stille Testmodus bleibt aktiv."
       },
       "touch_result": {
-        "title": "Ergebnis des Einlernens",
+        "title": "Ergebnis des Einlernens · {device}",
         "description": "{status}\n\nIm stillen Testmodus werden keine Licht-, Szenen- oder Medienaktionen ausgelöst.",
         "data": {
           "action": "Wie weiter?"

@@ -10,6 +10,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from zigpy.exceptions import ZigbeeException
 
 from .const import DOMAIN, TOUCH_FAILURES, TOUCH_FEEDBACK
+from .device_configuration import device_name
 
 COMMAND_ERRORS = (HomeAssistantError, ZigbeeException, TimeoutError, ValueError, KeyError, RuntimeError)
 
@@ -40,6 +41,9 @@ def learning_message(status):
 
 class TouchWizard:
     """Options-flow steps; no action is enabled without explicit confirmation."""
+
+    def _touch_placeholders(self, **extra):
+        return {"device": device_name(self.hass, self.config_entry), **extra}
 
     def _touch_runtime(self):
         return self.config_entry.runtime_data
@@ -83,7 +87,8 @@ class TouchWizard:
                     return await self.async_step_touch_baseline()
             except COMMAND_ERRORS:
                 errors["base"] = "touch_connection"
-        return self.async_show_form(step_id="touch_setup", data_schema=vol.Schema({}), errors=errors)
+        return self.async_show_form(step_id="touch_setup", data_schema=vol.Schema({}), errors=errors,
+                                    description_placeholders=self._touch_placeholders())
 
     async def async_step_touch_baseline(self, user_input=None):
         errors = {}
@@ -98,7 +103,8 @@ class TouchWizard:
                 return await self.async_step_touch_watch()
             except COMMAND_ERRORS:
                 errors["base"] = "touch_connection"
-        return self.async_show_form(step_id="touch_baseline", data_schema=vol.Schema({}), errors=errors)
+        return self.async_show_form(step_id="touch_baseline", data_schema=vol.Schema({}), errors=errors,
+                                    description_placeholders=self._touch_placeholders())
 
     async def _watch_touch(self):
         changed = asyncio.Event()
@@ -139,7 +145,7 @@ class TouchWizard:
             return self.async_show_progress_done(next_step_id="touch_result")
         return self.async_show_progress(
             step_id="touch_watch", progress_action="touch_learning",
-            description_placeholders={"status": learning_message(self._touch_status())},
+            description_placeholders=self._touch_placeholders(status=learning_message(self._touch_status())),
             progress_task=self._touch_task,
         )
 
@@ -165,7 +171,7 @@ class TouchWizard:
         choices = (["activate"] if success else []) + ["retry", "keep_test"]
         return self.async_show_form(
             step_id="touch_result", errors=errors,
-            description_placeholders={"status": self._touch_error or learning_message(status)},
+            description_placeholders=self._touch_placeholders(status=self._touch_error or learning_message(status)),
             data_schema=vol.Schema({vol.Required("action", default=choices[0]): selector.SelectSelector({
                 "options": choices, "translation_key": "touch_finish",
             })}),

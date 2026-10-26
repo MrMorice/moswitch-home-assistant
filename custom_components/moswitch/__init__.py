@@ -4,6 +4,7 @@ from homeassistant.const import Platform
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
+from .device_configuration import attach_configuration_link, remove_configuration_link
 from .runtime import Runtime
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -18,6 +19,7 @@ async def async_setup_entry(hass, entry):
         hass.data[DOMAIN] = runtime
     runtime.entries[entry.entry_id] = entry
     entry.runtime_data = runtime
+    attach_configuration_link(hass, entry)
     entry.async_on_unload(entry.add_update_listener(async_options_updated))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     runtime.schedule_sync()
@@ -37,3 +39,7 @@ async def async_unload_entry(hass, entry):
         runtime.stop()
         hass.data.pop(DOMAIN, None)
     return True
+
+
+async def async_remove_entry(hass, entry):
+    remove_configuration_link(hass, entry)

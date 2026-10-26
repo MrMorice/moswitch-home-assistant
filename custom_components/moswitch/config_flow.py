@@ -9,6 +9,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.script import async_validate_actions_config
 
 from .const import DOMAIN
+from .device_configuration import device_name
 from .rooms import device_area, ieee_for_device, room_entities
 from .touch_wizard import TouchWizard
 
@@ -123,7 +124,10 @@ class MoSwitchOptionsFlow(TouchWizard, config_entries.OptionsFlow):
         return options
 
     async def async_step_init(self, user_input=None):
-        return self.async_show_menu(step_id="init", menu_options=["touch_setup", "actions"])
+        return self.async_show_menu(
+            step_id="init", menu_options=["touch_setup", "actions"],
+            description_placeholders={"device": device_name(self.hass, self.config_entry)},
+        )
 
     async def async_step_actions(self, user_input=None):
         device_id = self.config_entry.data["device_id"]
