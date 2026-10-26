@@ -642,3 +642,35 @@ async def test_tuning_persisted_echo_while_held_in_diagnosis(hass, monkeypatch):
     runtime.touch_report(IEEE, dict(status, gap_grace_ms=12))
     await task
     assert runtime.touch_status[one.entry_id]["pressed"]
+
+
+@pytest.mark.asyncio
+async def test_touch_status_recovers_from_lost_query_ack_on_fresh_push(hass):
+    from custom_components.moswitch.sensor import TouchStatus
+
+    runtime = Runtime(hass)
+    one = entry("moswitch", unique_id=IEEE)
+    runtime.entries = {one.entry_id: one}
+    one.runtime_data = runtime
+    sensor = TouchStatus(one)
+    runtime.touch_report(IEEE, protocol.touch_status(v5_packet()))
+    assert sensor.available
+    runtime.query_touch = AsyncMock(side_effect=TimeoutError())
+    await sensor.async_update()
+    assert not sensor.available
+    runtime.touch_report(IEEE, protocol.touch_status(v5_packet()))
+    assert sensor.available and sensor.native_value == "Diagnose aktiv – Aktionen gesperrt"
+
+
+@pytest.mark.asyncio
+async def test_calibration_button_exposes_actual_failure_and_does_not_claim_old_firmware():
+    from homeassistant.exceptions import HomeAssistantError
+
+    from custom_components.moswitch.button import CalibrateTouch
+
+    one = entry("moswitch", unique_id=IEEE)
+    one.runtime_data = SimpleNamespace(calibrate_touch=AsyncMock(side_effect=RuntimeError("bad ACK")))
+    with pytest.raises(HomeAssistantError, match="bad ACK") as error:
+        await CalibrateTouch(one).async_press()
+    assert "Firmware ab" not in str(error.value)
+    assert "bereits erreicht" in str(error.value)
