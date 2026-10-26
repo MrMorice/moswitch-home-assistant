@@ -10,6 +10,7 @@ from homeassistant.helpers.script import async_validate_actions_config
 
 from .const import DOMAIN
 from .rooms import device_area, ieee_for_device, room_entities
+from .touch_wizard import TouchWizard
 
 
 def options_schema(hass, device_id, options):
@@ -112,7 +113,7 @@ class MoSwitchConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return MoSwitchOptionsFlow()
 
 
-class MoSwitchOptionsFlow(config_entries.OptionsFlow):
+class MoSwitchOptionsFlow(TouchWizard, config_entries.OptionsFlow):
     def _current_options(self, device_id):
         options = dict(self.config_entry.options)
         runtime = self.hass.data.get(DOMAIN)
@@ -122,6 +123,9 @@ class MoSwitchOptionsFlow(config_entries.OptionsFlow):
         return options
 
     async def async_step_init(self, user_input=None):
+        return self.async_show_menu(step_id="init", menu_options=["touch_setup", "actions"])
+
+    async def async_step_actions(self, user_input=None):
         device_id = self.config_entry.data["device_id"]
         errors = {}
         if user_input is not None:
@@ -134,7 +138,7 @@ class MoSwitchOptionsFlow(config_entries.OptionsFlow):
             else:
                 return self.async_create_entry(title="", data=user_input)
         return self.async_show_form(
-            step_id="init",
+            step_id="actions",
             errors=errors,
             data_schema=options_schema(self.hass, device_id, self._current_options(device_id)),
         )

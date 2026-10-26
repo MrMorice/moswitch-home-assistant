@@ -179,13 +179,13 @@ def touch_status(payload):
     version, state, flags, progress, raw, baseline, press, release = struct.unpack(
         "<BBBBIIII", payload[:20]
     )
-    if flags & ~(31 if version == 5 else 3) or (flags & 8 and not flags & 4):
+    if flags & ~(31 if version >= 5 else 3) or (flags & 8 and not flags & 4):
         return None
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version in (2, 3, 4, 5):
-        if len(payload) != (24 if version == 2 else 68 if version == 5 else 56) or state > (10 if version == 5 else 8) or progress > 10:
+    elif version in (2, 3, 4, 5, 6):
+        if len(payload) != (24 if version == 2 else 68 if version >= 5 else 56) or state > (10 if version >= 5 else 8) or progress > 10:
             return None
     else:
         return None
@@ -213,14 +213,19 @@ def touch_status(payload):
         ))
         data["feedback"] = payload[24]
         data["failure_reason"] = payload[25]
-    if version == 5:
-        filtered, press_ms, release_ms, samples, gap_ms, stable_ms, reserved = struct.unpack("<IBBBBHH", payload[56:])
+    if version >= 5:
+        filtered, press_ms, release_ms, samples, gap_ms, stable_ms, reserved = struct.unpack("<IBBBBHH", payload[56:68])
         values = (press_ms, release_ms, samples, gap_ms, stable_ms)
-        if reserved or not valid_touch_tuning(*values):
+        clock_invalid = (reserved != 0 if version == 5 else (
+            reserved > 90 or (reserved != 0 and (state != 7 or not data["detected_contacts"]))
+        ))
+        if clock_invalid or not valid_touch_tuning(*values):
             return None
         data.update(zip(TUNING_FIELDS, values, strict=True))
         data.update(test_mode=bool(flags & 4), training_session=bool(flags & 8),
                     measurement_valid=bool(flags & 16),
                     filtered_us=None if filtered == 0xFFFFFFFF else filtered,
                     tuning_writable=True)
+    if version >= 6:
+        data["learning_remaining_s"] = reserved
     return data

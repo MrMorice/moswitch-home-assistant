@@ -23,6 +23,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         TouchMeasurement(entry, "release_threshold_us", "Touch-Loslassschwelle", "µs"),
         TouchMeasurement(entry, "last_duration_ms", "Touch-Letzte Kontaktdauer", "ms"),
         TouchMeasurement(entry, "rejected_contacts", "Touch-Verworfene Kontakte", None),
+        TouchMeasurement(entry, "learning_taps", "Touch-Lernfortschritt", None),
+        TouchMeasurement(entry, "learning_remaining_s", "Touch-Lernzeit verbleibend", "s"),
     ]
     for entity in [touch, *measurements]:
         entity.device_entry = device

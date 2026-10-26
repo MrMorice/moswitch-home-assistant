@@ -156,3 +156,20 @@ Filter-/Zeitparameter; Rohwert, gefilterter Wert und bestätigter Touchkontakt
 werden getrennt angezeigt. Die Aussetzer-Toleranz ist begrenzt auf 0–30 ms;
 ungültige Messungen können keinen neuen Kontakt bestätigen. Medianfenster nur
 1/3/5/7. Änderungen werden erst nach Speicherbestätigung des Geräts übernommen.
+
+Ab Integration **0.1.13** mit Firmware **0.1.24** führt **Einstellungen → Geräte &
+Dienste → MoSwitch → Konfigurieren → Touchfläche einlernen** durch die gesamte
+Kalibrierung. Zuerst vorbereiten, dann bei losgelassener Fläche die viersekündige
+Ruhemessung bestätigen. Der Dialog zeigt den Lernfortschritt, Ablehnungsgründe
+und die vom Gerät gemeldete Restzeit. Vor dem ersten Kontakt läuft kein Zeitlimit;
+danach erneuert jeder erkannte Kontakt die 90 Sekunden Inaktivitätsfrist.
+
+Erst nach zehn gespeicherten Tipps bietet der Dialog die ausdrückliche Freigabe
+zum Schalten an. Alternativ bleibt der stille Testmodus aktiv. Schließen während
+der Mess-/Lernphase sendet Abbruch; der Testmodus bleibt auch bei Funkfehlern
+aktiv. Vor dem Start der Ruhemessung bleibt beim Schließen die stille Vorbereitung
+bestehen. Die manuellen Buttons und Parameter bleiben verfügbar, ältere
+Statusprotokolle weiterhin lesbar. Zwei zusätzliche Sensoren zeigen gezählte
+Lerntipps und die Inaktivitätsrestzeit; vor dem ersten Tipp ist die Restzeit 0
+(Frist noch nicht gestartet). Der geführte Dialog verlangt Protokoll 6, damit er
+keine falschen Versprechen über das Zeitlimit älterer Firmware macht.
