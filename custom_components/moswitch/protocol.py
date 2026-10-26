@@ -125,6 +125,7 @@ async def request(device, command: int, schema, *args):
             *args,
             manufacturer=MANUFACTURER,
             expect_reply=True,
+            ask_for_ack=True,
             disable_default_response=False,
         )
     )

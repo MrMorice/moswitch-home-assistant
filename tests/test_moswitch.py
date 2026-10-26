@@ -463,6 +463,8 @@ async def test_guided_calibration_wire_commands_and_rejections():
     await protocol.cancel_touch(dev)
     assert [(c, payload) for c, payload, _ in calls] == [(0x44, b""), (0x45, b""), (0x46, b"")]
     assert all(kwargs["manufacturer"] == 0xFFF1 for _, _, kwargs in calls)
+    assert all(kwargs["ask_for_ack"] is True and kwargs["expect_reply"] is True
+               and kwargs["disable_default_response"] is False for _, _, kwargs in calls)
     dev.endpoints[10].in_clusters[0].request = AsyncMock(return_value=SimpleNamespace(status=1))
     with pytest.raises(RuntimeError):
         await protocol.calibrate_touch(dev)

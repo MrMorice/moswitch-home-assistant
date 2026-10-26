@@ -67,7 +67,9 @@ class CancelTouch(CalibrateTouch):
             KeyError,
             RuntimeError,
         ) as err:
-            raise HomeAssistantError("Keine laufende Kalibrierung erreichbar.") from err
+            raise HomeAssistantError(
+                f"Abbruch nicht bestätigt: {type(err).__name__}: {str(err) or 'Zigbee-Zeitüberschreitung'}"
+            ) from err
 
 
 class BaselineTouch(CalibrateTouch):
