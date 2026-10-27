@@ -8,7 +8,7 @@ import probatio as vol
 from homeassistant.components import websocket_api
 from zigpy import types as t
 
-from . import protocol
+from .const import ENDPOINT, MANUFACTURER
 from .touch_wizard import COMMAND_ERRORS
 
 
@@ -54,7 +54,12 @@ async def read_chunk(entry, offset):
         future = asyncio.get_running_loop().create_future()
         runtime.touch_trace_waiters[ieee] = (offset, future)
         try:
-            await protocol.request(device, 0x4C, TraceOffset, offset)
+            # Data arrives as an independently validated0x82 event. A ZCL reply
+            # waiter can steal that binary response and misread it as an ACK.
+            await device.endpoints[ENDPOINT].in_clusters[0].request(
+                False,0x4C,TraceOffset,offset,manufacturer=MANUFACTURER,
+                expect_reply=False,ask_for_ack=True,disable_default_response=True,
+            )
             return await asyncio.wait_for(future, 15)
         finally:
             runtime.touch_trace_waiters.pop(ieee, None)

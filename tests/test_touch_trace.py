@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from custom_components.moswitch import touch_trace
+from custom_components.moswitch.const import ENDPOINT
 from custom_components.moswitch.runtime import GestureListener
 
 
@@ -40,18 +41,20 @@ async def test_trace_device_and_offset_routing():
 
 @pytest.mark.asyncio
 async def test_read_chunk_safety_and_cleanup(monkeypatch):
-    device = SimpleNamespace(ieee="one")
+    device = SimpleNamespace(ieee="one", endpoints={ENDPOINT: SimpleNamespace(in_clusters={0: SimpleNamespace()})})
     runtime = SimpleNamespace(touch_trace_waiters={}, touch_trace_locks={},
                               touch_status={"entry": {"state": 8, "test_mode": True}},
                               touch_received_at={"entry": time.monotonic()},
                               listen_switch=lambda entry: device)
     entry = SimpleNamespace(entry_id="entry", runtime_data=runtime)
 
-    async def request(*args):
-        assert args[0] is device and args[1] == 0x4C
+    async def request(*args, **kwargs):
+        assert args[0] is False and args[1] == 0x4C
+        assert kwargs["expect_reply"] is False and kwargs["ask_for_ack"] is True
         touch_trace.trace_reply(runtime, "one", packet())
+        return b"not a DefaultResponse"
 
-    monkeypatch.setattr(touch_trace.protocol, "request", request)
+    device.endpoints[ENDPOINT].in_clusters[0].request = request
     assert (await touch_trace.read_chunk(entry, 0))["total_records"] == 1
     assert not runtime.touch_trace_waiters
     for state, quiet in ((7, True), (3, False)):
@@ -59,7 +62,7 @@ async def test_read_chunk_safety_and_cleanup(monkeypatch):
         with pytest.raises(ValueError):
             await touch_trace.read_chunk(entry, 0)
     runtime.touch_status["entry"] = {"state": 8, "test_mode": True}
-    monkeypatch.setattr(touch_trace.protocol, "request", AsyncMock(side_effect=TimeoutError()))
+    device.endpoints[ENDPOINT].in_clusters[0].request = AsyncMock(side_effect=TimeoutError())
     with pytest.raises(TimeoutError):
         await touch_trace.read_chunk(entry, 0)
     assert not runtime.touch_trace_waiters
