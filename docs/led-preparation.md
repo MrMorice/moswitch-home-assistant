@@ -96,3 +96,13 @@ keine normalen Einstellungen, Entitäten oder Lichtaktionen ergänzt.
 wird nur im expliziten Test gesetzt und anschließend zurückgenommen. Der v3-
 Befund nennt die tatsächlich bestätigte Variante. Null Flanken sind nur mit
 bestandenem Selbsttest und ohne Erfassungsfehler aussagekräftig.
+
+## Ressourcen-Resetwert0.1.26
+
+0.1.48 antwortete vor Erfassung/Selbsttest mit Ressourcenkonflikt. Der
+PRS-Resetwert des realen SDK ist0x000c0000; der bisherige pauschale Nullvergleich
+war falsch.0.1.49 korrigiert die Freiprüfung auf genau null oder Resetwert und
+stellt den exakten alten Zustand wieder her. Ein nativer SDK-Header-Regressionstest
+sichert dies. V3-capture_faults nennt zusätzlich tatsächliche Ressourcenblocker
+in Bits16..23; HA führt diese einzeln als resource_blockers auf.
+Kein GPIO-/Hardwaredefekt wird aus einem nicht gestarteten Capture abgeleitet.

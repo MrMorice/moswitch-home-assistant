@@ -75,6 +75,10 @@ def parse_ring(payload):
             "routing_matches_expected": mode == 4 and route_enable == 16 and not faults & 2048,
             "reference_hz": reference_hz, "timer_hz": timer_hz,
             "edge_count": edges, "rising_edges": rises, "capture_faults": faults,
+            "resource_blockers": [name for bit, name in (
+                (1, "timer2_active"), (2, "timer2_interrupts"), (4, "timer2_pin_route"),
+                (8, "timer2_prs_consumer"), (16, "prs11"), (32, "gpio_interrupt2"),
+                (64, "dma_channel"), (128, "timer2_clock")) if faults >> 16 & bit],
             "min_high_us": round(min_high * us, 3) if min_high else None,
             "max_high_us": round(max_high * us, 3) if max_high else None,
             "min_low_us": round(min_low * us, 3) if min_low else None,
