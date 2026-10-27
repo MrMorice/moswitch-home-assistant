@@ -244,10 +244,10 @@ Er ersetzt keinen physischen Einlerndurchlauf.
 
 ### Isolierter 24V-Test per OTA
 
-HA0.1.19 stellt für Administratoren `moswitch/firmware/install_test` und
+HA0.1.20 stellt für Administratoren `moswitch/firmware/install_test` und
 `moswitch/firmware/test_status` als gerätebezogene WebSocket-Befehle bereit.
 Der Upload akzeptiert ausschließlich den SHA-256-gepinnten stillen
-Firmwarekandidaten0.1.41 auf einem MoSwitch v1 mit Gerätestand0.1.40. Vor dem
+Firmwarekandidaten0.1.42 auf einem MoSwitch v1 mit Gerätestand0.1.41. Vor dem
 Transfer wird ein frischer stiller Diagnosezustand vom Gerät verlangt. Die
 Datei wird im RAM nur an diesen Zigpy-Geräteknoten übertragen; es gibt keine
 Registrierung als globaler OTA-Anbieter und keinen Eintrag im öffentlichen
