@@ -3,6 +3,7 @@
 import time
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.const import EntityCategory
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
@@ -16,7 +17,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class TouchContact(BinarySensorEntity):
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_should_poll = False
     _attr_icon = "mdi:gesture-tap"
 

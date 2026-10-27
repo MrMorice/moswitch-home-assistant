@@ -4,7 +4,7 @@ MoSwitch ergänzt einen kapazitiven Zigbee-Raumschalter um automatische
 Raumzuordnung, Szenenwechsel und konfigurierbare Doppeltipp-Aktionen in Home
 Assistant mit ZHA. Die Integration wird über HACS installiert.
 
-**Entwicklungsstand 0.1.16:** Integration für die MoSwitch-Bench-Firmware.
+**Entwicklungsstand 0.1.17:** Integration für die MoSwitch-Bench-Firmware.
 Keine fertige Produktfreigabe. Die Integration wird mit Home Assistant 2026.10.2
 und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet werden.
 
@@ -16,9 +16,10 @@ und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet w
    zuordnen. Die Lampen müssen direkt im selben ZHA-Netz angemeldet sein.
 3. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen → MoSwitch**
    den Schalter auswählen. Alle physischen Raumlampen werden automatisch ermittelt.
-4. Auf der **ZHA-Geräteseite → Geräte-Informationen → Besuchen** die Einstellungen
-   dieses Schalters öffnen. Der interne Link führt direkt zu Raum, Touchfläche
-   und Aktionen. Jeder Schalter hat einen eigenen Link und seine eigene Zuordnung.
+4. Auf der **ZHA-Geräteseite → Geräte-Informationen → Besuchen** den Dialog für
+   diesen Schalter öffnen. Die Geräteseite bleibt im Hintergrund geöffnet. Im
+   Dialog stehen **Touchfläche** und **Zuordnung & Aktionen** zur Auswahl. Jeder
+   Schalter hat seinen eigenen Link und seine eigenen Optionen.
 5. Den Raum prüfen, Doppeltipp-Aktion wählen und die Szenenreihenfolge festlegen.
    **Zuordnung speichern** übernimmt Raum und Aktionen zusammen. Bei einem
    Raumwechsel werden Mediengeräte und Szenen für den neuen Raum neu ausgewählt.
@@ -31,7 +32,7 @@ HA sendet dafür keinen zusätzlichen Toggle.
 
 ## Touchfläche einlernen
 
-Auf derselben Einstellungsseite **Touchfläche einlernen** wählen. Der neue Ablauf
+Im Geräte-Dialog unter **Touchfläche** auf **Touchfläche einlernen** drücken. Der neue Ablauf
 benötigt Protokoll 7 und eine aktive Touchmessung; aktuell geprüft mit Firmware
 0.1.38. Messingscheibe und endgültigen Aufbau vor dem Einlernen montieren.
 
@@ -50,15 +51,27 @@ Eine von dieser Seite gestartete laufende Lernsitzung wird beim Schließen
 abgebrochen. Der stille Diagnosemodus kann ebenfalls hier eingeschaltet werden;
 eine vorhandene gültige Kalibrierung lässt sich ausdrücklich wieder freigeben.
 
-Unter **Diagnose und Feineinstellung** stehen Messwerte, gespeicherte Parameter,
-manuelle Parameteränderungen und technische Daten. Bestätigte Werte bleiben auch
-ohne aktivierte einzelne Diagnose-Entities verfügbar. Die alten Touch-Buttons,
-Number-Entities, Einzelmessungen, Kontakt- und Testmodus-Entity werden mit 0.1.16
-einmalig deaktiviert. Ihre IDs bleiben erhalten; gezieltes späteres Reaktivieren
-wird respektiert. ZHA-Firmwareupdate, Identifizieren und der Touchstatus bleiben
-auf der normalen Geräteseite. Die MoSwitch-Optionsdialoge bleiben als Rückfallweg
-verfügbar. Die neue Seite ist für Administratoren freigegeben und benötigt weder
-Dashboard-Karten noch zusätzliche Frontend-Abhängigkeiten.
+Die normale Geräteseite zeigt wieder native Konfigurations-Entitäten: Baseline,
+Ein-/Loslassabstand, Touch-Testmodus und Doppeltipp-Verhalten. Unter Diagnose stehen
+Touchstatus, Kontakt, Lernfortschritt, Ruhewert und Ruheschwankung. Mediengeräte,
+Szenenreihenfolge und eigene Aktionen werden im Reiter **Zuordnung & Aktionen**
+zugewiesen. Die normale HA-Raumzuordnung bleibt ebenfalls verwendbar.
+
+Zusätzliche Messwerte, Timing-Parameter und alte einzelne Lern-Buttons bleiben
+standardmäßig deaktiviert. Alle Parameter sind weiterhin im eingeklappten Bereich
+**Diagnose und Feineinstellung** des Dialogs verfügbar. Bei der Migration werden
+nur zuvor durch die Integration deaktivierte wichtige Controls wieder aktiviert;
+Benutzer-Deaktivierungen und spätere manuelle Entscheidungen bleiben erhalten.
+ZHA-Firmwareupdate und Identifizieren werden nicht geändert.
+
+Das HACS-Paket registriert ein eigenes Frontend-Modul über HAs Extra-Module und
+öffnet den Dialog über den HA-Dialogmanager. Es verändert keine HA-Komponenten
+oder Geräteseiten-Templates. Browser Mod und Dashboard-Karten werden nicht
+benötigt. Der Einstieg ist der vorhandene Geräte-Link **Besuchen** unter
+Geräte-Informationen. Es wird kein zusätzlicher Button in die Konfigurationskarte
+injiziert. Nach dem Update den Browser vollständig neu laden, damit das Modul
+auch auf der Geräteseite geladen ist. Alte Links auf `/moswitch/<entry_id>` und
+die nativen MoSwitch-Optionsdialoge bleiben als Rückfallweg verfügbar.
 
 ## Aktivitäten beim Schalter
 
@@ -206,3 +219,25 @@ Schalters, Ruhewert, Ruheschwankung und gelernte Abstände. Für die endgültige
 Kalibrierung Scheibe/Abdeckung montieren und die vorgesehene Versorgung nutzen.
 Bestehende Geräte mit älterer Firmware bleiben lesbar; der neue Ablauf fordert
 die passende Firmware an. Die ACMP-Kalibrierung liegt getrennt von GPIO-Werten.
+
+
+## Dialog im Browser prüfen
+
+`tools/test_device_dialog.cjs` verwendet die nativen UI-Komponenten einer
+verbundenen HA-Instanz in einem isolierten Chrome-Kontext. Alle MoSwitch-Befehle
+und Lernmeldungen sind dabei simuliert. Die Zugangsdaten-Datei wird ausschließlich
+für die Anmeldung gelesen und darf nicht in Git stehen.
+
+Benötigt werden Node.js, Playwright 1.62.1 und Chrome. Beispiel nach lokaler
+Installation von Playwright in einer separaten Testumgebung:
+
+```sh
+node tools/test_device_dialog.cjs /absoluter/pfad/zu/ha-zugangsdaten.json
+```
+
+Die Datei enthält `url` und `token`. Optional sind `BROWSER_CHANNEL` und
+`MOSWITCH_UI_OUTPUT` konfigurierbar. Die Aufzeichnungen liegen standardmäßig unter
+`dist/0.1.17/verification/`. Der Test prüft Geräte-Link, unveränderte Geräte-URL,
+Zuordnung, alle Lernphasen, Beenden im stillen Modus, ausdrückliche Freigabe,
+Escape, Mobilansicht, Themevariablen und den Schutz vor falscher Gerätezuordnung.
+Er ersetzt keinen physischen Einlerndurchlauf.

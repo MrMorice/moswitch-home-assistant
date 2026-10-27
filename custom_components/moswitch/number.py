@@ -34,7 +34,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class TouchParameter(NumberEntity):
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_should_poll = False
     _attr_mode = NumberMode.BOX
@@ -89,6 +89,8 @@ class TouchParameter(NumberEntity):
 
 
 class TouchTuningParameter(TouchParameter):
+    _attr_entity_registry_enabled_default = False
+
     def __init__(self, entry, key, label, bounds):
         super().__init__(entry, key, label)
         self.bounds = bounds

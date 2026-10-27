@@ -367,7 +367,7 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     parameters = [e for e in all_entities if "_touch_parameter_" in e.unique_id]
     measurements = [e for e in all_entities if "_touch_measurement_" in e.unique_id]
-    assert len(parameters) == 8 and len(measurements) == 9
+    assert len(parameters) == 8 and len(measurements) == 10
     for entity in [*parameters, *measurements]:
         assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
     assert len(dr.async_get(hass).devices) == 1
@@ -434,10 +434,12 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     assert baseline_button.available and "Ruhemessung starten" in status.native_value
     await baseline_button.async_press()
     runtime.baseline_touch.assert_awaited_once_with(one)
-    await test_mode.async_turn_off()
-    runtime.test_touch.assert_awaited_once_with(one, False)
-    runtime.calibrate_touch.side_effect = RuntimeError("busy")
     from homeassistant.exceptions import HomeAssistantError
+
+    with pytest.raises(HomeAssistantError):
+        await test_mode.async_turn_off()
+    runtime.test_touch.assert_not_awaited()
+    runtime.calibrate_touch.side_effect = RuntimeError("busy")
 
     with pytest.raises(HomeAssistantError):
         await start.async_press()
@@ -1030,7 +1032,7 @@ async def test_entity_cleanup_preserves_ids_and_user_choices_and_zha(hass):
     user = create('touch_contact')
     registry.async_update_entity(user.entity_id, disabled_by=er.RegistryEntryDisabler.USER)
     migrate_entity_layout(hass, config)
-    assert registry.async_get(number.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get(number.entity_id).disabled_by is None
     assert registry.async_get(reading.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
     assert registry.async_get(status.entity_id).disabled_by is None
     assert registry.async_get(zha.entity_id).disabled_by is None
@@ -1038,7 +1040,7 @@ async def test_entity_cleanup_preserves_ids_and_user_choices_and_zha(hass):
     registry.async_update_entity(number.entity_id, disabled_by=None)
     migrate_entity_layout(hass, config)
     assert registry.async_get(number.entity_id).disabled_by is None  # Respect later re-enabling.
-    assert config.data['ui_layout_version'] == 1
+    assert config.data['ui_layout_version'] == 2
 
 
 @pytest.mark.asyncio
@@ -1050,10 +1052,14 @@ async def test_old_controls_are_disabled_by_default_but_status_remains(hass):
     from custom_components.moswitch.switch import TouchTestMode
 
     config = panel_config(hass, device(hass))
-    for item in [TouchContact(config), CalibrateTouch(config), TouchParameter(config, 'baseline_us', 'Baseline'),
-                 TouchMeasurement(config, 'raw_us', 'Raw', 'µs'), TouchTestMode(config)]:
+    for item in [CalibrateTouch(config), TouchMeasurement(config, 'raw_us', 'Raw', 'µs')]:
         assert not item.entity_registry_enabled_default
-    assert TouchStatus(config).entity_registry_enabled_default
+    for item in [TouchContact(config), TouchParameter(config, 'baseline_us', 'Baseline'),
+                 TouchMeasurement(config, 'baseline_us', 'Baseline', 'µs'),
+                 TouchMeasurement(config, 'learning_taps', 'Fortschritt', None),
+                 TouchTestMode(config), TouchStatus(config)]:
+        assert item.entity_registry_enabled_default
+
 
 
 @pytest.mark.asyncio
@@ -1104,3 +1110,101 @@ async def test_panel_activation_requires_explicit_command_and_fresh_normal_repor
     runtime.test_touch.assert_awaited_once_with(config, False)
     conn.send_error.assert_not_called()
     assert conn.send_result.call_args.args[1]['touch']['test_mode'] is False
+
+
+@pytest.mark.asyncio
+async def test_dialog_layout_restores_only_native_controls_and_respects_user_disabling(hass):
+    from homeassistant.const import EntityCategory
+
+    from custom_components.moswitch.entity_layout import migrate_entity_layout
+
+    config = panel_config(hass, device(hass))
+    hass.config_entries.async_update_entry(config, data={**config.data, 'ui_layout_version': 1})
+    registry = er.async_get(hass)
+    native = registry.async_get_or_create('number', 'moswitch', f'{IEEE}_touch_parameter_press_delta_us',
+        config_entry=config, device_id=config.data['device_id'], disabled_by=er.RegistryEntryDisabler.INTEGRATION)
+    user = registry.async_get_or_create('switch', 'moswitch', f'{IEEE}_touch_test_mode',
+        config_entry=config, device_id=config.data['device_id'], disabled_by=er.RegistryEntryDisabler.USER)
+    raw = registry.async_get_or_create('sensor', 'moswitch', f'{IEEE}_touch_measurement_raw_us',
+        config_entry=config, device_id=config.data['device_id'], disabled_by=er.RegistryEntryDisabler.INTEGRATION)
+    migrate_entity_layout(hass, config)
+    assert registry.async_get(native.entity_id).disabled_by is None
+    assert registry.async_get(user.entity_id).disabled_by is er.RegistryEntryDisabler.USER
+    assert registry.async_get(raw.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get(raw.entity_id).entity_category is EntityCategory.DIAGNOSTIC
+    registry.async_update_entity(native.entity_id, disabled_by=er.RegistryEntryDisabler.USER)
+    migrate_entity_layout(hass, config)
+    assert registry.async_get(native.entity_id).disabled_by is er.RegistryEntryDisabler.USER
+
+
+@pytest.mark.asyncio
+async def test_native_double_action_preserves_other_switch_settings(hass):
+    from custom_components.moswitch.select import DoubleAction
+
+    config = panel_config(hass, device(hass))
+    options = {'double_action': 'media', 'players': ['media_player.test'], 'actions': [], 'scene_order': ['scene.test']}
+    hass.config_entries.async_update_entry(config, options=options)
+    selector = DoubleAction(config)
+    selector.hass = hass
+    await selector.async_select_option('none')
+    assert selector.current_option == 'none'
+    assert dict(config.options) == {**options, 'double_action': 'none'}
+    with pytest.raises(ValueError):
+        await selector.async_select_option('wrong')
+    assert selector.current_option == 'none'
+
+
+@pytest.mark.asyncio
+async def test_dialog_info_checks_admin_and_resolves_device(hass):
+    import inspect
+    from unittest.mock import Mock
+
+    from homeassistant.exceptions import Unauthorized
+
+    from custom_components.moswitch.device_configuration import configuration_url
+    from custom_components.moswitch.panel import ws_info
+
+    config = panel_config(hass, device(hass))
+    conn = SimpleNamespace(user=SimpleNamespace(is_admin=True), send_result=Mock(), send_error=Mock())
+    await inspect.unwrap(ws_info)(hass, conn, {'id': 1, 'entry_id': config.entry_id})
+    assert conn.send_result.call_args.args[1]['device_id'] == config.data['device_id']
+    assert configuration_url(config).startswith('homeassistant://config/devices/device/'+config.data['device_id'])
+    assert '?moswitch_settings='+config.entry_id in configuration_url(config)
+    with pytest.raises(Unauthorized):
+        ws_info(hass, SimpleNamespace(user=SimpleNamespace(is_admin=False)), {})
+    await inspect.unwrap(ws_info)(hass, conn, {'id': 2, 'entry_id': 'missing'})
+    conn.send_error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_native_test_mode_waits_for_confirmed_normal_report(hass):
+    import time
+
+    from custom_components.moswitch.switch import TouchTestMode
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.touch_status[config.entry_id] = {'state': 10, 'calibrated': True, 'test_mode': True}
+    async def normal(config, enabled):
+        runtime.touch_status[config.entry_id] = {'state': 3, 'calibrated': True, 'test_mode': False}
+        runtime.touch_received_at[config.entry_id] = time.monotonic()
+    runtime.test_touch = AsyncMock(side_effect=normal)
+    control = TouchTestMode(config)
+    control.hass = hass
+    await control.async_turn_off()
+    runtime.test_touch.assert_awaited_once_with(config, False)
+    assert not control.is_on
+
+
+@pytest.mark.asyncio
+async def test_native_double_tap_change_keeps_shared_room_scene_order(hass):
+    from custom_components.moswitch.select import DoubleAction
+
+    area = ar.async_get(hass).async_create('Wohnzimmer').id
+    config = panel_config(hass, device(hass, area))
+    config.runtime_data.rooms[area] = {'scene_order': ['scene.latest']}
+    hass.config_entries.async_update_entry(config, options={'double_action': 'media', 'scene_order': ['scene.old']})
+    control = DoubleAction(config)
+    control.hass = hass
+    await control.async_select_option('none')
+    assert config.options['scene_order'] == ['scene.latest']

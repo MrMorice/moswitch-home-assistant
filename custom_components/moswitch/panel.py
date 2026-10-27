@@ -100,17 +100,20 @@ async def save_settings(hass, entry, area_id, options):
 async def async_register(hass):
     if PANEL_DATA in hass.data:
         return
-    from homeassistant.components import panel_custom
+    from homeassistant.components import frontend, panel_custom
 
     hass.data[PANEL_DATA] = {"sessions": {}}
     await hass.http.async_register_static_paths([StaticPathConfig(
         "/moswitch_static/device-settings.js", str(Path(__file__).with_name("device-settings.js")), False,
+    ), StaticPathConfig(
+        "/moswitch_static/device-dialog.js", str(Path(__file__).with_name("device-dialog.js")), False,
     )])
+    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.17")
     await panel_custom.async_register_panel(
         hass, frontend_url_path="moswitch", webcomponent_name="moswitch-device-settings",
-        module_url="/moswitch_static/device-settings.js?v=0.1.16", require_admin=True,
+        module_url="/moswitch_static/device-settings.js?v=0.1.17", require_admin=True,
     )
-    for handler in (ws_subscribe, ws_action, ws_save, ws_preview):
+    for handler in (ws_subscribe, ws_action, ws_save, ws_preview, ws_info):
         websocket_api.async_register_command(hass, handler)
 
 
@@ -256,5 +259,21 @@ async def ws_preview(hass, connection, msg):
         if ar.async_get(hass).async_get_area(msg["area_id"]) is None:
             raise ValueError("Raum nicht gefunden")
         connection.send_result(msg["id"], snapshot(hass, entry, area_id=msg["area_id"]))
+    except ValueError as err:
+        connection.send_error(msg["id"], "not_found", str(err))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "moswitch/device/info",
+                                 vol.Required("entry_id"): str})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_info(hass, connection, msg):
+    """Resolve the physical device before opening its browser-local dialog."""
+    try:
+        entry = panel_entry(hass, msg["entry_id"])
+        connection.send_result(msg["id"], {
+            "entry_id": entry.entry_id, "device_id": entry.data["device_id"],
+            "name": device_name(hass, entry),
+        })
     except ValueError as err:
         connection.send_error(msg["id"], "not_found", str(err))

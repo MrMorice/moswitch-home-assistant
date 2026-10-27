@@ -10,6 +10,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from zigpy.exceptions import ZigbeeException
 
 from .const import DOMAIN
+from .touch_wizard import confirmed_touch_command
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -19,7 +20,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class TouchTestMode(SwitchEntity):
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_enabled_default = True
     _attr_entity_category = EntityCategory.CONFIG
     _attr_should_poll = False
     _attr_icon = "mdi:test-tube"
@@ -47,8 +48,16 @@ class TouchTestMode(SwitchEntity):
         await self.set_mode(False)
 
     async def set_mode(self, enabled):
+        runtime = self.entry.runtime_data
+        status = runtime.touch_status.get(self.entry.entry_id, {})
+        if not enabled and (status.get("state") in (1, 2, 7, 9, 11, 12, 13) or not status.get("calibrated")):
+            raise HomeAssistantError("Einlernen zuerst abschließen oder abbrechen; eine gültige Kalibrierung ist zum Schalten erforderlich")
         try:
-            await self.entry.runtime_data.test_touch(self.entry, enabled)
+            await confirmed_touch_command(
+                self.hass, self.entry, runtime.test_touch,
+                lambda s: bool(s.get("test_mode")) == enabled and (enabled or s.get("state") == 3),
+                enabled,
+            )
         except (ZigbeeException, TimeoutError, ValueError, KeyError, RuntimeError) as err:
             raise HomeAssistantError("Touch-Testmodus nicht bestätigt") from err
 
