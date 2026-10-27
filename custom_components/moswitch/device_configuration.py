@@ -4,12 +4,13 @@ from urllib.parse import quote
 
 from homeassistant.helpers import device_registry as dr
 
-PREFIX = "homeassistant://moswitch/"
+PREFIX = "homeassistant://config/devices/device/"
 
 
 def configuration_url(entry):
-    """Open the selected physical switch directly in the hidden settings panel."""
-    return PREFIX + quote(entry.entry_id, safe="")
+    """Open the assistant over this physical device, without leaving its page."""
+    return (PREFIX + quote(entry.data["device_id"], safe="")
+            + "?moswitch_settings=" + quote(entry.entry_id, safe=""))
 
 
 def attach_configuration_link(hass, entry):

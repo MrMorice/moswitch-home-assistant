@@ -1,4 +1,4 @@
-/* Device-scoped HA panel. Uses the current HA theme and native selector editors. */
+/* Shared device settings content for the HA dialog and legacy panel route. */
 const ACTIVE = [1, 2, 7, 9, 11, 12, 13];
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 class MoSwitchDeviceSettings extends HTMLElement {
@@ -76,23 +76,31 @@ class MoSwitchDeviceSettings extends HTMLElement {
       #wizard{scroll-margin-top:80px}.steps{display:flex;gap:8px;padding:0;list-style:none;margin:24px 0}.steps li{flex:1;border-top:3px solid var(--divider-color);padding-top:8px;font-size:12px;color:var(--secondary-text-color)}.steps li.current,.steps li.done{border-color:var(--accent);color:var(--primary-text-color)}.stage{padding:28px 24px;border-radius:12px;background:var(--secondary-background-color);text-align:center}.stage p{max-width:520px;margin:12px auto 0}.count{font-size:44px;line-height:1.2;font-weight:500;margin-bottom:16px;font-variant-numeric:tabular-nums}.count small{font-size:20px;color:var(--secondary-text-color)}.orb{margin:0 auto 18px;width:40px;height:40px;border:5px solid var(--accent);border-radius:50%;background:var(--card-background-color)}.orb.pulse{animation:breathe 1.6s ease-in-out infinite}.orb.touch{background:var(--accent)}@keyframes breathe{50%{opacity:.4;transform:scale(.85)}}@media(prefers-reduced-motion:reduce){.orb.pulse{animation:none}}
       details>summary{cursor:pointer;display:flex;align-items:center;gap:12px;font-weight:500;padding:4px 0;list-style:none}details>summary::after{content:'⌄';margin-inline-start:auto;font-size:20px}details[open]>summary::after{content:'⌃'}details .body{padding-top:20px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}.metric{padding:12px;background:var(--secondary-background-color);border-radius:8px}.metric span{display:block;font-size:12px;color:var(--secondary-text-color);margin-bottom:6px}.metric b{font-size:18px;font-weight:500}.parameters{display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;margin-top:24px}.parameter .row{gap:8px}.parameter input{max-width:110px}.parameter small{color:var(--secondary-text-color)}.parameter button{padding:8px 12px}.footer{display:flex;align-items:center;gap:16px;justify-content:flex-end;margin:24px 0}.footer span{font-size:14px;color:var(--secondary-text-color)}pre{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto}ha-form{display:block;margin-top:20px}.divider{margin-top:20px;padding-top:16px;border-top:1px solid var(--divider-color)}
       @media(max-width:600px){header{height:56px;padding:0 8px}header span{font-size:18px}main{padding:24px 16px 40px}h1{font-size:26px}section{padding:20px}.section-head{gap:12px}.stage{padding:24px 14px}.parameters{grid-template-columns:1fr}.steps{gap:5px}.steps li{font-size:11px}.metrics{grid-template-columns:1fr 1fr}.footer{flex-wrap:wrap}.actions button{flex-grow:1}.gesture strong{min-width:90px}}
+      :host([dialog-view]){height:auto;overflow:visible;background:transparent}
+      :host([dialog-view]) header,:host([dialog-view]) .intro .eyebrow,:host([dialog-view]) h1,:host([dialog-view]) #area-name{display:none}
+      :host([dialog-view]) main{padding:16px 20px 24px;max-width:none}
+      :host([dialog-view]) .intro{margin:0 0 16px}
+      :host([dialog-view]) section{padding:20px}
+      :host([dialog-view="touch"]) #room-section,:host([dialog-view="touch"]) #actions-section,:host([dialog-view="touch"]) #assignment-footer{display:none}
+      :host([dialog-view="assignment"]) #touch,:host([dialog-view="assignment"]) #advanced-section{display:none}
+      @media(max-width:600px){:host([dialog-view]) main{padding:16px 12px}:host([dialog-view]) section{padding:16px}}
     </style>
     <header><a id="back" aria-label="Zurück zum Gerät"><ha-icon icon="mdi:arrow-left"></ha-icon></a><span>MoSwitch · Einstellungen</span></header>
     <main><div class="intro"><div class="eyebrow">SCHALTER EINRICHTEN</div><h1 id="name">Einstellungen werden geladen …</h1><div class="meta"><span id="area-name" class="eyebrow"></span><span id="mode" class="pill"></span></div></div>
     <div id="error" role="alert" class="notice error" hidden></div><div id="saved" role="status" class="notice success" hidden></div>
     <div id="content" hidden>
-    <section><div class="section-head"><ha-icon icon="mdi:floor-plan"></ha-icon><div><h2>Raum & Licht</h2><p>Der Schalter steuert die Zigbee-Leuchten seines Raums.</p></div></div><div class="room"><label for="area">Raum zuordnen</label><select id="area"></select></div><p id="area-change" class="hint" hidden>Nach dem Raumwechsel Mediengeräte und Szenen neu auswählen. Eigene Aktionen bleiben erhalten.</p><div id="lights" class="lights"></div></section>
+    <section id="room-section"><div class="section-head"><ha-icon icon="mdi:floor-plan"></ha-icon><div><h2>Raum & Licht</h2><p>Der Schalter steuert die Zigbee-Leuchten seines Raums.</p></div></div><div class="room"><label for="area">Raum zuordnen</label><select id="area"></select></div><p id="area-change" class="hint" hidden>Nach dem Raumwechsel Mediengeräte und Szenen neu auswählen. Eigene Aktionen bleiben erhalten.</p><div id="lights" class="lights"></div></section>
     <section id="touch"><div class="section-head"><ha-icon icon="mdi:gesture-tap"></ha-icon><div><h2>Touchfläche</h2><p id="touch-summary">Status wird geladen …</p></div></div>
-      <div id="touch-home"><p>Mit montierter Touchfläche einlernen: erst unberührt lassen, dann zehnmal kurz tippen und zum Schluss zwei Sekunden halten.</p><div class="actions"><button id="learn" class="primary">Touchfläche einlernen</button><button id="activate-home" hidden>Zum Schalten freigeben</button></div></div>
+      <div id="touch-home"><p>Mit montierter Touchfläche einlernen: erst unberührt lassen, dann zehnmal kurz tippen und zum Schluss zwei Sekunden halten.</p><div class="actions"><button id="learn" class="primary">Touchfläche einlernen</button><button id="reconnect" hidden>Verbindung prüfen</button><button id="activate-home" hidden>Zum Schalten freigeben</button></div></div>
       <div id="wizard" hidden><div class="notice">Stiller Modus: Licht-, Szenen- und Medienaktionen sind während des Einlernens gesperrt.</div><ol class="steps"><li>Ruhe messen</li><li>10 Tipps</li><li>Halten</li><li>Fertig</li></ol><div class="stage" aria-live="polite"><div id="orb" class="orb"></div><div id="count" class="count" hidden></div><h3 id="stage-title"></h3><p id="instruction"></p><p id="feedback" class="hint"></p></div><div class="actions"><button id="baseline" class="primary" hidden>Fläche ist frei · Ruhemessung starten</button><button id="activate" class="primary" hidden>Zum Schalten freigeben</button><button id="keep" hidden>Im stillen Testmodus bleiben</button><button id="retry" hidden>Erneut einlernen</button><button id="cancel">Einlernen abbrechen</button></div></div>
     </section>
-    <section><div class="section-head"><ha-icon icon="mdi:tune-variant"></ha-icon><div><h2>Bedienung & Aktionen</h2><p>Einmal tippen schaltet das Licht. Doppeltippen und Halten kannst du hier zuordnen.</p></div></div><div class="gesture"><strong>Einmal tippen</strong><span>Licht im Raum ein- oder ausschalten</span></div><div class="gesture"><strong>Halten</strong><span>Durch die Szenen im Raum wechseln</span></div><div id="options" class="action-editor"></div><p class="hint">Die Szenenreihenfolge gilt für alle MoSwitch-Schalter im selben Raum.</p></section>
-    <div class="footer"><span id="unsaved"></span><button id="save" class="primary" disabled>Zuordnung speichern</button></div>
-    <section><details id="diagnostics"><summary><ha-icon icon="mdi:chart-line"></ha-icon>Diagnose und Feineinstellung</summary><div class="body"><p id="health" class="hint"></p><div id="metrics" class="metrics"></div><div class="actions"><button id="refresh">Messwerte aktualisieren</button><button id="diagnose">Stillen Testmodus einschalten</button></div><p class="hint">Diese Parameter werden beim Einlernen ermittelt. Änderungen werden einzeln an den Schalter übertragen und erst nach dessen Bestätigung angezeigt.</p><div id="parameters" class="parameters"></div><details class="divider"><summary>Technische Messdaten</summary><pre id="raw"></pre></details></div></details></section>
+    <section id="actions-section"><div class="section-head"><ha-icon icon="mdi:tune-variant"></ha-icon><div><h2>Bedienung & Aktionen</h2><p>Einmal tippen schaltet das Licht. Doppeltippen und Halten kannst du hier zuordnen.</p></div></div><div class="gesture"><strong>Einmal tippen</strong><span>Licht im Raum ein- oder ausschalten</span></div><div class="gesture"><strong>Halten</strong><span>Durch die Szenen im Raum wechseln</span></div><div id="options" class="action-editor"></div><p class="hint">Die Szenenreihenfolge gilt für alle MoSwitch-Schalter im selben Raum.</p></section>
+    <div class="footer" id="assignment-footer"><span id="unsaved"></span><button id="save" class="primary" disabled>Zuordnung speichern</button></div>
+    <section id="advanced-section"><details id="diagnostics"><summary><ha-icon icon="mdi:chart-line"></ha-icon>Diagnose und Feineinstellung</summary><div class="body"><p id="health" class="hint"></p><div id="metrics" class="metrics"></div><div class="actions"><button id="refresh">Messwerte aktualisieren</button><button id="diagnose">Stillen Testmodus einschalten</button></div><p class="hint">Diese Parameter werden beim Einlernen ermittelt. Änderungen werden einzeln an den Schalter übertragen und erst nach dessen Bestätigung angezeigt.</p><div id="parameters" class="parameters"></div><details class="divider"><summary>Technische Messdaten</summary><pre id="raw"></pre></details></div></details></section>
     </div></main>`;
     const q = id => this.shadowRoot.getElementById(id);
-    for (const [id,action] of [['learn','prepare'],['retry','prepare'],['baseline','baseline'],['cancel','cancel'],['activate','activate'],['activate-home','activate'],['refresh','refresh'],['diagnose','diagnose']]) q(id).onclick = () => this._command(action);
-    q('keep').onclick = () => { this._learning = false; this._updateTouch(); };
+    for (const [id,action] of [['learn','prepare'],['reconnect','refresh'],['retry','prepare'],['baseline','baseline'],['cancel','cancel'],['activate','activate'],['activate-home','activate'],['refresh','refresh'],['diagnose','diagnose']]) q(id).onclick = () => this._command(action);
+    q('keep').onclick = () => { this._learning = false; this._updateTouch(); this._finished(); };
     q('area').onchange = () => this._changeArea();
     q('save').onclick = () => this._save();
 
@@ -188,12 +196,14 @@ class MoSwitchDeviceSettings extends HTMLElement {
     const active = ACTIVE.includes(state);
     const showing = this._learning || active;
     const preparing=this._busy&&this._pendingAction==='prepare'&&!active;
-    q('mode').className = 'pill'+(d.quiet?' quiet':'');
+    q('mode').className = 'pill'+(!fresh||d.quiet?' quiet':'');
     q('mode').innerHTML = `<i></i>${!fresh?'Keine aktuellen Messdaten':d.quiet?'Stiller Testmodus':'Schaltbetrieb aktiv'}`;
     q('touch-summary').textContent = !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
     q('touch-home').hidden = showing;
     q('wizard').hidden = !showing;
-    q('learn').disabled = this._busy || !fresh;
+    q('learn').disabled = this._busy;
+    q('reconnect').hidden=fresh;
+    q('reconnect').disabled=this._busy;
     q('activate-home').hidden = !(d.quiet && s.calibrated && !active);
     q('activate-home').textContent=state===3?'Zum Schalten freigeben':'Mit bisherigen Werten freigeben';
     const step = [1,2,9].includes(state)?0:state===7?1:[11,12,13].includes(state)?2:3;
@@ -235,6 +245,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
       input.parentElement.querySelector('button').disabled=input.disabled;
     }
     q('diagnose').hidden=d.quiet;
+    this.dispatchEvent(new CustomEvent('moswitch-status',{bubbles:true,composed:true,detail:{busy:this._busy,active}}));
   }
   async _command(action, extra={}) {
     if (this._busy) return;
@@ -249,7 +260,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
       const data=await this._hass.callWS({type:'moswitch/device/action',entry_id:this._entry,session:this._session,action,...extra});
       if(generation!==this._generation)return;
       this._data=data;this._updatedAt=Date.now();
-      if(action==='activate') this._learning=false;
+      if(action==='activate'){this._learning=false;this._finished();}
       if(action==='prepare')this.shadowRoot.getElementById('wizard').scrollIntoView({behavior:'smooth',block:'start'});
       if(action==='parameter') {this._parameterDirty.delete('p-'+extra.key);this._success('Parameter vom Schalter bestätigt und gespeichert.');}
     } catch(error) { if(generation===this._generation){if(action==='prepare'&&!ACTIVE.includes(this._data.touch.state))this._learning=false;this._error(error);} }
@@ -269,6 +280,9 @@ class MoSwitchDeviceSettings extends HTMLElement {
       this._success('Raum und Aktionen gespeichert.');
     } catch(error) {if(generation===this._generation)this._error(error);}
     finally {if(generation===this._generation){this._busy=false;this._setDirty();this._updateTouch();}}
+  }
+  _finished() {
+    if(this.hasAttribute('dialog-view'))this.dispatchEvent(new CustomEvent('moswitch-finished',{bubbles:true,composed:true}));
   }
   _error(error) {
     const node=this.shadowRoot.getElementById('error');

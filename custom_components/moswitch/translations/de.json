@@ -85,5 +85,17 @@
         "keep_test": "Im stillen Testmodus bleiben"
       }
     }
+  },
+  "entity": {
+    "select": {
+      "double_action": {
+        "name": "Doppeltipp",
+        "state": {
+          "media": "Medienwiedergabe",
+          "custom": "Eigene Aktionen",
+          "none": "Keine Aktion"
+        }
+      }
+    }
   }
 }

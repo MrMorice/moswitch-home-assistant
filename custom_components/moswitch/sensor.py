@@ -19,6 +19,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         TouchMeasurement(entry, "raw_us", "Touch-Messwert", "µs"),
         TouchMeasurement(entry, "filtered_us", "Touch-Gefilterter Messwert", "µs"),
         TouchMeasurement(entry, "baseline_us", "Touch-Baseline", "µs"),
+        TouchMeasurement(entry, "idle_noise_us", "Touch-Ruheschwankung", "µs"),
         TouchMeasurement(entry, "press_threshold_us", "Touch-Einschaltschwelle", "µs"),
         TouchMeasurement(entry, "release_threshold_us", "Touch-Loslassschwelle", "µs"),
         TouchMeasurement(entry, "last_duration_ms", "Touch-Letzte Kontaktdauer", "ms"),
@@ -130,11 +131,12 @@ class TouchStatus(ConfigurationStatus):
 class TouchMeasurement(TouchStatus):
     _attr_entity_registry_enabled_default = False
     _attr_should_poll = False
-    _attr_entity_category = None
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, entry, key, label, unit):
         super().__init__(entry)
         self.key = key
+        self._attr_entity_registry_enabled_default = key in ("baseline_us", "idle_noise_us", "learning_taps")
         self._attr_unique_id = f"{entry.unique_id}_touch_measurement_{key}"
         self._attr_name = f"{entry.title} {label}"
         self._attr_native_unit_of_measurement = unit

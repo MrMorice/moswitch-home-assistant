@@ -85,5 +85,17 @@
         "keep_test": "Im stillen Testmodus bleiben"
       }
     }
+  },
+  "entity": {
+    "select": {
+      "double_action": {
+        "name": "Double tap",
+        "state": {
+          "media": "Media playback",
+          "custom": "Custom actions",
+          "none": "No action"
+        }
+      }
+    }
   }
 }
