@@ -49,6 +49,48 @@ def test_wire_probe_distinguishes_pin_activity_from_spi_completion():
         assert parse_ring(bad) is None
 
 
+def edge_packet(edges=384, levels=252, faults=0, timer_hz=39000000, variant=0, nonce=1):
+    base = struct.pack("<BBBBIIHBB", 3, 7, 32, 0, 3250000, 1, nonce, 7, 0)
+    return base + struct.pack("<BBBB9I", variant + 1, levels, 4, 16, 39000000, edges, (edges + 1) // 2,
+                              12 if edges else 0, 36 if edges else 0,
+                              24 if edges else 0, 48 if edges else 0, faults, timer_hz)
+
+
+def test_hardware_edge_capture_requires_working_gpio_self_test_for_negative():
+    p = parse_ring(edge_packet())["wire_probe"]
+    assert p["hardware_capture"] and p["coverage_sufficient"]
+    assert p["edge_count"] == 384 and p["output_activity_observed"] is True
+    assert p["payload_matches_expected"] and p["pulse_timing_within_profile"]
+    assert p["min_high_us"] == .308 and p["max_high_us"] == .923
+    assert parse_ring(edge_packet(variant=2))["wire_probe"]["transport_variant"] == 2
+    low = parse_ring(edge_packet(edges=0, levels=60))["wire_probe"]
+    assert low["coverage_sufficient"] and low["output_activity_observed"] is False
+    assert low["min_high_us"] is None and not low["payload_matches_expected"]
+    for flags, faults in ((4, 8), (60, 16), (60, 32), (60, 64)):
+        p = parse_ring(edge_packet(edges=0, levels=flags, faults=faults))["wire_probe"]
+        assert not p["coverage_sufficient"] and p["output_activity_observed"] is None
+    for bad in (edge_packet(edges=513), edge_packet(timer_hz=0)):
+        assert parse_ring(bad) is None
+
+
+@pytest.mark.asyncio
+async def test_wire_transport_variant_is_explicit_and_device_confirmed():
+    cluster = SimpleNamespace()
+    device = SimpleNamespace(ieee="one", endpoints={ENDPOINT: SimpleNamespace(in_clusters={0: cluster})})
+    runtime = SimpleNamespace(ring_waiters={}, ring_locks={}, listen_switch=lambda entry: device)
+    entry = SimpleNamespace(entry_id="one", runtime_data=runtime)
+
+    async def request(*args, **kwargs):
+        assert args[3] == 7
+        ring_reply(runtime, "one", edge_packet(variant=args[4], nonce=args[5]))
+
+    cluster.request = request
+    assert (await ring_action(entry, "wire_check", 2))["wire_probe"]["transport_variant"] == 2
+    for bad in (-1, 3, True):
+        with pytest.raises(ValueError):
+            await ring_action(entry, "wire_check", bad)
+
+
 def test_ring_packet_and_admin():
     assert parse_ring(packet(flags=15))["test_active"]
     for data in (None, b"", packet()[:-1], packet(flags=16), packet(brightness=65), packet(operation=7), packet(result=2)):

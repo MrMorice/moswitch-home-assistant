@@ -26,7 +26,7 @@ def parse_ring(payload):
         return None
     version, flags, brightness, error, baud, frames, nonce, operation, result = struct.unpack("<BBBBIIHBB", payload[:16])
     if not ((version == 1 and len(payload) == 16 and operation <= 6)
-            or (version == 2 and len(payload) == 56 and operation == 7)):
+            or (version in (2, 3) and len(payload) == 56 and operation == 7)):
         return None
     if flags > 15 or brightness > 64 or result > 1:
         return None
@@ -56,6 +56,32 @@ def parse_ring(payload):
             "coverage_sufficient": coverage,
             "output_activity_observed": True if activity else False if coverage else None,
         }
+    if version == 3:
+        executed, levels, mode, route_enable, reference_hz, edges, rises, min_high, max_high, min_low, max_low, faults, timer_hz = struct.unpack("<BBBB9I", payload[16:])
+        if (executed > 3 or mode > 15 or edges > 512 or rises != (edges + 1) // 2
+                or min_high > max_high or min_low > max_low or (executed and not faults and not timer_hz)):
+            return None
+        us = 1_000_000 / timer_hz if timer_hz else 0
+        coverage = bool(executed and levels & 4 and levels & 32 and levels & 8
+                        and levels & 16 and not faults and timer_hz)
+        status["wire_probe"] = {
+            "executed": bool(executed), "hardware_capture": True,
+            "transport_variant": executed - 1 if executed else None,
+            "input_before": bool(levels & 1), "input_after": bool(levels & 2),
+            "transfer_complete": bool(levels & 4), "direct_gpio_high_ok": bool(levels & 8),
+            "direct_gpio_low_ok": bool(levels & 16), "capture_self_test_passed": bool(levels & 32),
+            "payload_matches_expected": bool(levels & 64), "pulse_timing_within_profile": bool(levels & 128),
+            "gpio_mode": mode, "route_enable": route_enable,
+            "routing_matches_expected": mode == 4 and route_enable == 16 and not faults & 2048,
+            "reference_hz": reference_hz, "timer_hz": timer_hz,
+            "edge_count": edges, "rising_edges": rises, "capture_faults": faults,
+            "min_high_us": round(min_high * us, 3) if min_high else None,
+            "max_high_us": round(max_high * us, 3) if max_high else None,
+            "min_low_us": round(min_low * us, 3) if min_low else None,
+            "max_low_us": round(max_low * us, 3) if max_low else None,
+            "coverage_sufficient": coverage,
+            "output_activity_observed": True if edges >= 2 else False if coverage else None,
+        }
     return status
 
 
@@ -72,6 +98,8 @@ async def ring_action(entry, action, value=None):
     """Supply confirmation is an operator declaration, never a rail measurement."""
     if action not in OPS or (action == "brightness" and (type(value) is not int or not 0 <= value <= 64)):
         raise ValueError("Ungültige LED-Diagnoseeinstellung")
+    if action == "wire_check" and value is not None and (type(value) is not int or not 0 <= value <= 2):
+        raise ValueError("Ungültige LED-Prüfvariante")
     runtime = entry.runtime_data
     device = runtime.listen_switch(entry)
     ieee = str(device.ieee)
@@ -97,7 +125,7 @@ async def ring_action(entry, action, value=None):
                 future.cancel()
 
     async with lock:
-        argument = 0xA5 if action == "confirm_supply" else value if action == "brightness" else 0
+        argument = 0xA5 if action == "confirm_supply" else value or 0 if action in ("brightness", "wire_check") else 0
         status = await command(OPS[action], argument)
         if action == "enable" and (not status["enabled"] or not status["started"] or status["error"]):
             raise ValueError("LED-Treiber wurde nicht gestartet")
@@ -105,6 +133,8 @@ async def ring_action(entry, action, value=None):
             raise ValueError("LED-Test wurde nicht gestartet")
         if action == "wire_check" and not status.get("wire_probe", {}).get("executed"):
             raise ValueError("LED-Leitungsprüfung wurde nicht ausgeführt")
+        if action == "wire_check" and status["wire_probe"].get("hardware_capture") and status["wire_probe"].get("transport_variant") != argument:
+            raise ValueError("LED-Prüfvariante wurde nicht bestätigt")
         if action == "confirm_supply" and not status["supply_confirmed"]:
             raise ValueError("Versorgungsbestätigung fehlt")
         if action == "brightness" and status["brightness"] != value:
