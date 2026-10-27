@@ -57,7 +57,7 @@ async def set_touch_parameters(device, baseline, press_delta, release_delta):
 
 
 TUNING_FIELDS = ("press_debounce_ms", "release_debounce_ms", "filter_samples", "gap_grace_ms", "release_stable_ms")
-TUNING_BOUNDS = ((1, 100), (1, 200), (1, 7), (0, 30), (20, 500))
+TUNING_BOUNDS = ((1, 100), (1, 200), (1, 7), (0, 100), (20, 500))
 
 
 class TouchTuning(t.Struct):
@@ -174,7 +174,7 @@ async def cancel_touch(device):
 
 
 def touch_status(payload):
-    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24, 56, 68):
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24, 56, 68, 76):
         return None
     version, state, flags, progress, raw, baseline, press, release = struct.unpack(
         "<BBBBIIII", payload[:20]
@@ -184,12 +184,12 @@ def touch_status(payload):
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version in (2, 3, 4, 5, 6):
-        if len(payload) != (24 if version == 2 else 68 if version >= 5 else 56) or state > (10 if version >= 5 else 8) or progress > 10:
+    elif version in (2, 3, 4, 5, 6, 7):
+        if len(payload) != (76 if version == 7 else 24 if version == 2 else 68 if version >= 5 else 56) or state > (13 if version == 7 else 10 if version >= 5 else 8) or progress > 10:
             return None
     else:
         return None
-    if version >= 3 and (payload[24] > 8 or payload[25] > 6 or payload[26:28] != b"\0\0"):
+    if version >= 3 and (payload[24] > (11 if version == 7 else 8) or payload[25] > (7 if version == 7 else 6) or (payload[26:28] not in (b"\1\1", b"\2\1") if version == 7 else payload[26:28] != b"\0\0")):
         return None
     data = {
         "state": state,
@@ -219,7 +219,7 @@ def touch_status(payload):
         clock_invalid = (reserved != 0 if version == 5 else (
             reserved > 90 or (reserved != 0 and (state != 7 or not data["detected_contacts"]))
         ))
-        if clock_invalid or not valid_touch_tuning(*values):
+        if clock_invalid or not valid_touch_tuning(*values) or (version < 7 and gap_ms > 30):
             return None
         data.update(zip(TUNING_FIELDS, values, strict=True))
         data.update(test_mode=bool(flags & 4), training_session=bool(flags & 8),
@@ -228,4 +228,13 @@ def touch_status(payload):
                     tuning_writable=True)
     if version >= 6:
         data["learning_remaining_s"] = reserved
+    if version == 7:
+        noise, hold_ms, faults = struct.unpack("<IHH", payload[68:76])
+        if hold_ms > 2000:
+            return None
+        if state in (11, 12, 13) and (progress != 10 or (flags & 12) != 12):
+            return None
+        data.update(measurement_backend="acmp", profile_version=1, idle_noise_us=None if noise == 0xFFFFFFFF else noise,
+                    hold_remaining_ms=hold_ms, capture_faults=faults, comparator_reference=32,
+                    comparator_hysteresis=3, frontend_active=payload[26] == 1, hold_verification_required=True)
     return data

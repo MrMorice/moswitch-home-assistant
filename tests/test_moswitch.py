@@ -690,6 +690,38 @@ def v6_packet(state=7, contacts=0, progress=0, remaining=0, feedback=2):
     return bytes(packet)
 
 
+def v7_packet(state=7, contacts=0, progress=0, remaining=0, feedback=2, hold_ms=0, gap_ms=50):
+    import struct
+
+    packet = bytearray(v6_packet(state, contacts, progress, remaining, feedback))
+    packet[0] = 7
+    packet[26:28] = b"\1\1"
+    packet[63] = gap_ms
+    packet.extend(struct.pack("<IHH", 1, hold_ms, 0))
+    return bytes(packet)
+
+
+def test_acmp_protocol_verification_and_backend_isolation():
+    from custom_components.moswitch.touch_wizard import learning_message
+
+    for state, feedback, hold in ((11, 9, 2000), (12, 10, 900), (13, 11, 0)):
+        status = protocol.touch_status(v7_packet(state, 10, 10, feedback=feedback, hold_ms=hold))
+        assert status["measurement_backend"] == "acmp"
+        assert status["gap_grace_ms"] == 50
+        assert status["hold_remaining_ms"] == hold
+        assert learning_message(status)
+    assert "noch nicht gespeichert" in learning_message(protocol.touch_status(v7_packet(11, 10, 10)))
+    assert "liegen lassen" in learning_message(protocol.touch_status(v7_packet(12, 10, 10)))
+    assert "loslassen" in learning_message(protocol.touch_status(v7_packet(13, 10, 10)))
+    assert protocol.touch_status(v7_packet(11, 10, 9)) is None
+    assert protocol.touch_status(v7_packet(12, 10, 10, hold_ms=2001)) is None
+    assert protocol.touch_status(v7_packet(gap_ms=101)) is None
+    broken = bytearray(v7_packet())
+    broken[26] = 0
+    assert protocol.touch_status(broken) is None
+    assert protocol.touch_status(v5_packet(tuning=(8, 50, 3, 50, 100))) is None
+
+
 def test_v6_inactivity_clock_and_older_protocols():
     from custom_components.moswitch.touch_wizard import learning_message
 
@@ -716,11 +748,11 @@ async def test_touch_wizard_uses_reports_and_retains_options(hass):
     runtime = Runtime(hass)
     runtime.entries[one.entry_id] = one
     one.runtime_data = runtime
-    runtime.touch_report(IEEE, protocol.touch_status(v6_packet(state=10)))
+    runtime.touch_report(IEEE, protocol.touch_status(v7_packet(state=10)))
     flow = MoSwitchOptionsFlow()
     flow.hass, flow.handler = hass, one.entry_id
     async def report(state):
-        runtime.touch_report(IEEE, protocol.touch_status(v6_packet(state=state)))
+        runtime.touch_report(IEEE, protocol.touch_status(v7_packet(state=state)))
     async def query(e):
         await report(10)
     async def prepare(e):
@@ -740,12 +772,18 @@ async def test_touch_wizard_uses_reports_and_retains_options(hass):
     assert result['type'] == 'progress'
     task = result['progress_task']
     await asyncio.sleep(0)
-    runtime.touch_report(IEEE, protocol.touch_status(v6_packet(contacts=3, progress=2, remaining=88)))
+    runtime.touch_report(IEEE, protocol.touch_status(v7_packet(contacts=3, progress=2, remaining=88)))
     await asyncio.sleep(0)
     result = await flow.async_step_touch_watch()
     assert '2 von 10' in result['description_placeholders']['status']
     assert not task.done()
-    runtime.touch_report(IEEE, protocol.touch_status(v6_packet(state=3, contacts=10, progress=10)))
+    for state, hold in ((11, 2000), (12, 1000), (13, 0)):
+        runtime.touch_report(IEEE, protocol.touch_status(v7_packet(state=state, contacts=10, progress=10, hold_ms=hold)))
+        await asyncio.sleep(0)
+        assert not task.done()  # Ten tips alone must never finish/save the flow.
+        result = await flow.async_step_touch_watch()
+        assert result['type'] == 'progress'
+    runtime.touch_report(IEEE, protocol.touch_status(v7_packet(state=3, contacts=10, progress=10)))
     await task
     result = await flow.async_step_touch_watch()
     assert result['step_id'] == 'touch_result'
@@ -757,7 +795,7 @@ async def test_touch_wizard_uses_reports_and_retains_options(hass):
     assert one.entry_id in runtime.touch_quiet
     async def activate(e, enabled):
         assert enabled is False
-        packet = bytearray(v6_packet(state=3, contacts=10, progress=10))
+        packet = bytearray(v7_packet(state=3, contacts=10, progress=10))
         packet[2] = 17
         runtime.touch_report(IEEE, protocol.touch_status(packet))
     runtime.test_touch = AsyncMock(side_effect=activate)

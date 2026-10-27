@@ -136,7 +136,7 @@ class Runtime:
         for entry in self.entries.values():
             if entry.unique_id == ieee:
                 previous = self.touch_status.get(entry.entry_id)
-                if status.get("test_mode") or status["state"] in (1, 2, 7, 9, 10):
+                if status.get("test_mode") or status["state"] in (1, 2, 7, 9, 10, 11, 12, 13):
                     self.touch_quiet.add(entry.entry_id)
                 # A reported normal state is required to release the HA guard.
                 else:
@@ -153,7 +153,7 @@ class Runtime:
                 waiter = self.touch_parameter_waiters.get(entry.entry_id)
                 if waiter is not None:
                     expected, future = waiter
-                    if not future.done() and status["state"] not in (1, 2, 7, 9) and all(
+                    if not future.done() and status["state"] not in (1, 2, 7, 9, 11, 12, 13) and all(
                         status.get(key) == value for key, value in expected.items()
                     ):
                         future.set_result(None)
@@ -207,8 +207,10 @@ class Runtime:
                 raise HomeAssistantError("Zum Einstellen ist Firmware ab 0.1.14 erforderlich")
             if time.monotonic() - received >= 120 or (not tuning and not status.get("calibrated")):
                 raise HomeAssistantError("Keine aktuelle gültige Touchkalibrierung verfügbar")
-            if status.get("state") in (1, 2, 7, 9) or (status.get("pressed") and status.get("state") != 10):
+            if status.get("state") in (1, 2, 7, 9, 11, 12, 13) or (status.get("pressed") and status.get("state") != 10):
                 raise HomeAssistantError("Erst Kalibrierung beenden und den Touch loslassen")
+            if key == "gap_grace_ms" and value > 30 and status.get("protocol_version", 0) < 7:
+                raise HomeAssistantError("Mehr als 30 ms erfordern die ACMP-Firmware ab 0.1.35")
             values = {field: status[field] for field in fields}
             values[key] = value
             validate = protocol.valid_touch_tuning if tuning else protocol.valid_touch_parameters

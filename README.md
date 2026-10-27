@@ -184,3 +184,16 @@ Dialogtitel zeigen den aktuellen Gerätenamen; benutzerdefinierte Namen haben
 Vorrang. Das ZHA-Gerät, seine Besitzer-Integration, Raumzuordnung und Entitäten
 bleiben erhalten. Beim Löschen des MoSwitch-Eintrags wird dessen eigener Link
 entfernt; beim bloßen Neuladen bleibt er verfügbar.
+
+## ACMP-Assistent mit Haltetest (0.1.15)
+
+Mit ACMP-Firmware ab0.1.35 führt **Touchfläche einlernen** durch Ruhephase,
+zehn kurze Tipps und einen zweisekündigen Halte-/Loslasstest. Nach dem zehnten
+Tipp der jeweiligen Anweisung im Dialog folgen; die Werte sind dann noch nicht
+gespeichert. Erst nach erfolgreichem Haltetest und stabilem Loslassen werden sie
+übernommen. Der Schalter bleibt still, bis er im Ergebnis ausdrücklich zum
+Schalten freigegeben wird. Der Assistent zeigt den Namen des ausgewählten
+Schalters, Ruhewert, Ruheschwankung und gelernte Abstände. Für die endgültige
+Kalibrierung Scheibe/Abdeckung montieren und die vorgesehene Versorgung nutzen.
+Bestehende Geräte mit älterer Firmware bleiben lesbar; der neue Ablauf fordert
+die passende Firmware an. Die ACMP-Kalibrierung liegt getrennt von GPIO-Werten.

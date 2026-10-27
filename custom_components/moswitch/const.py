@@ -16,6 +16,9 @@ TOUCH_FEEDBACK = {
     6: "Nicht gezählt: länger als 2 Sekunden",
     7: "Nicht gezählt: Signal zu schwach",
     8: "Nicht gezählt: Messaussetzer",
+    9: "Jetzt zwei Sekunden halten",
+    10: "Kontakt halten",
+    11: "Jetzt vollständig loslassen",
 }
 
 TOUCH_FAILURES = {
@@ -25,4 +28,5 @@ TOUCH_FAILURES = {
     4: "Ruhemessung zu unruhig",
     5: "ungültige Kalibrierwerte",
     6: "Zeitlimit erreicht",
+    7: "Haltetest unterbrochen; die bisherigen Werte bleiben erhalten",
 }

@@ -84,6 +84,10 @@ class TouchStatus(ConfigurationStatus):
             return "Diagnose aktiv – Aktionen gesperrt"
         if status["state"] == 3 and status.get("test_mode"):
             return "Kalibriert – Testmodus zum Schalten ausschalten"
+        if status["state"] in (11, 12, 13):
+            return {11: "Zehn Tipps erfasst – jetzt zwei Sekunden halten",
+                    12: "Haltetest läuft – Finger liegen lassen",
+                    13: "Haltetest bestanden – jetzt loslassen"}[status["state"]]
         if status["state"] == 7:
             if feedback := TOUCH_FEEDBACK.get(status.get("feedback")):
                 return f"{feedback} ({status['learning_taps']}/10)"
