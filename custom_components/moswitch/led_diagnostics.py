@@ -12,7 +12,7 @@ from .const import ENDPOINT, MANUFACTURER
 from .touch_wizard import COMMAND_ERRORS
 
 OPS = {"disable": 0, "enable": 1, "test": 2, "confirm_supply": 3,
-       "forget_supply": 4, "brightness": 5, "status": 6}
+       "forget_supply": 4, "brightness": 5, "status": 6, "wire_check": 7}
 
 
 class RingCommand(t.Struct):
@@ -22,15 +22,41 @@ class RingCommand(t.Struct):
 
 
 def parse_ring(payload):
-    if not isinstance(payload, (bytes, bytearray)) or len(payload) != 16:
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (16, 56):
         return None
-    version, flags, brightness, error, baud, frames, nonce, operation, result = struct.unpack("<BBBBIIHBB", payload)
-    if version != 1 or flags > 15 or brightness > 64 or operation > 6 or result > 1:
+    version, flags, brightness, error, baud, frames, nonce, operation, result = struct.unpack("<BBBBIIHBB", payload[:16])
+    if not ((version == 1 and len(payload) == 16 and operation <= 6)
+            or (version == 2 and len(payload) == 56 and operation == 7)):
         return None
-    return {"supply_confirmed": bool(flags & 1), "enabled": bool(flags & 2),
+    if flags > 15 or brightness > 64 or result > 1:
+        return None
+    status = {"supply_confirmed": bool(flags & 1), "enabled": bool(flags & 2),
             "started": bool(flags & 4), "test_active": bool(flags & 8),
             "brightness": brightness, "error": error, "baud": baud, "frames": frames,
             "nonce": nonce, "operation": operation, "result": result}
+    if version == 2:
+        executed, levels, mode, route_enable, reference_hz, samples, high, transitions, max_gap, duration, first_high, route, core_hz = struct.unpack("<BBBB9I", payload[16:])
+        if (executed > 1 or levels > 7 or mode > 15 or high > samples
+                or transitions > samples or (executed and not core_hz)):
+            return None
+        us = 1_000_000 / core_hz if core_hz else 0
+        coverage = bool(executed and levels & 4 and samples >= 64
+                        and duration * us >= 700 and max_gap * us < 100)
+        activity = bool(high and high < samples and transitions >= 2)
+        status["wire_probe"] = {
+            "executed": bool(executed), "input_before": bool(levels & 1),
+            "input_after": bool(levels & 2), "transfer_complete": bool(levels & 4),
+            "gpio_mode": mode, "route_enable": route_enable, "tx_route": route,
+            "routing_matches_expected": mode == 4 and route_enable == 16 and route == 0x20002,
+            "reference_hz": reference_hz, "core_hz": core_hz, "samples": samples,
+            "high_samples": high, "transitions_observed": transitions,
+            "max_sample_gap_us": round(max_gap * us, 3),
+            "duration_us": round(duration * us, 3),
+            "first_high_us": round(first_high * us, 3) if first_high != 0xFFFFFFFF else None,
+            "coverage_sufficient": coverage,
+            "output_activity_observed": True if activity else False if coverage else None,
+        }
+    return status
 
 
 def ring_reply(runtime, ieee, payload):
@@ -77,6 +103,8 @@ async def ring_action(entry, action, value=None):
             raise ValueError("LED-Treiber wurde nicht gestartet")
         if action == "test" and (not status["test_active"] or not status["enabled"] or not status["started"] or status["error"]):
             raise ValueError("LED-Test wurde nicht gestartet")
+        if action == "wire_check" and not status.get("wire_probe", {}).get("executed"):
+            raise ValueError("LED-Leitungsprüfung wurde nicht ausgeführt")
         if action == "confirm_supply" and not status["supply_confirmed"]:
             raise ValueError("Versorgungsbestätigung fehlt")
         if action == "brightness" and status["brightness"] != value:

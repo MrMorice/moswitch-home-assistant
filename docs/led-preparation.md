@@ -70,3 +70,16 @@ und behält die begrenzten Wartepfade bei. Interner Upload ausschließlich von
 0.1.45, Größe 361434, SHA-256 `d8acb7bb92b280b532f99e9fa57908eb653cf0f640205192176f520eb3a5780c`.
 Keine allgemeine Firmwarefreigabe und keine neue Licht- oder Raumaktion.
 Physische LED-Prüfung weiter offen.
+
+## Leitungsprüfung0.1.24
+
+Sichtprüfung des Nutzers: Ring bleibt dunkel, obwohl0.1.46 den RGB-Controllerlauf
+fehlerfrei meldet. `wire_check` (Operation7) ergänzt mit0.1.47 ein GPIO-Readback
+während eines einmaligen Frames in stiller Diagnose. Die Antwort0x83 verwendet
+nur für diese Operation Version2/56Bytes; bisherige Statusmeldungen bleiben
+Version1/16Bytes. Neben SPI-Fertig wird PC02-Pegelaktivität getrennt gemeldet.
+Die Ausgabe unterscheidet wechselnde Pegel, konstanten Pegel bei ausreichender
+Abdeckung und einen wegen Abtastlücken unentschiedenen Befund. GPIO-Modus/Route
+werden roh und als Vergleich zu PC02/push-pull/TXPEN gemeldet. Das misst keine
+einzelnen Pulsbreiten,5V_LED oder das Signal hinter U3. Firmwaredetails und
+Prüfgrenzen stehen im Firmware-Integrationsworktree in docs/led-control.md.

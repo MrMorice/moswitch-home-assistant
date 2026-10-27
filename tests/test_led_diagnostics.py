@@ -21,6 +21,34 @@ def packet(nonce=1, operation=6, flags=0, brightness=32, error=0, result=0):
     return struct.pack("<BBBBIIHBB", 1, flags, brightness, error, 3250000, 1, nonce, operation, result)
 
 
+def wire_packet(nonce=1, high=200, transitions=300, max_gap=78, core_hz=78000000):
+    base = struct.pack("<BBBBIIHBB", 2, 7, 32, 0, 3250000, 1, nonce, 7, 0)
+    details = struct.pack("<BBBB9I", 1, 4, 4, 16, 39000000, 2000, high,
+                          transitions, max_gap, 72000, 25000 if high else 0xFFFFFFFF,
+                          0x20002, core_hz)
+    return base + details
+
+
+def test_wire_probe_distinguishes_pin_activity_from_spi_completion():
+    status = parse_ring(wire_packet())["wire_probe"]
+    assert status["transfer_complete"] and status["output_activity_observed"] is True
+    assert status["coverage_sufficient"] and status["gpio_mode"] == 4
+    assert status["routing_matches_expected"]
+    assert status["tx_route"] == 0x20002
+    # Successful SPI completion alone must not count as a waveform at the pin.
+    low = parse_ring(wire_packet(high=0, transitions=0))["wire_probe"]
+    assert low["transfer_complete"] and low["output_activity_observed"] is False
+    assert low["first_high_us"] is None
+    high = parse_ring(wire_packet(high=2000, transitions=0))["wire_probe"]
+    assert high["output_activity_observed"] is False
+    # A scheduling gap which could hide the payload makes a negative inconclusive.
+    gap = parse_ring(wire_packet(high=0, transitions=0, max_gap=78000))["wire_probe"]
+    assert gap["output_activity_observed"] is None and not gap["coverage_sufficient"]
+    for bad in (wire_packet()[:-1], wire_packet() + b"x", wire_packet(core_hz=0),
+                wire_packet(high=2001), wire_packet(transitions=2001)):
+        assert parse_ring(bad) is None
+
+
 def test_ring_packet_and_admin():
     assert parse_ring(packet(flags=15))["test_active"]
     for data in (None, b"", packet()[:-1], packet(flags=16), packet(brightness=65), packet(operation=7), packet(result=2)):
@@ -41,6 +69,18 @@ async def test_ring_reply_matches_device_nonce_operation():
     listener.cluster_command(1, 0x83, packet(5, 1, flags=7))
     assert future.result()["enabled"]
     listener.cluster_command(1, 0x83, packet(5, 1, flags=7))
+
+
+@pytest.mark.asyncio
+async def test_wire_reply_uses_device_nonce_and_operation():
+    future = asyncio.get_running_loop().create_future()
+    runtime = SimpleNamespace(ring_waiters={"one": (5, 7, future)})
+    ring_reply(runtime, "other", wire_packet(5))
+    ring_reply(runtime, "one", wire_packet(4))
+    ring_reply(runtime, "one", packet(5, 6))
+    assert not future.done()
+    ring_reply(runtime, "one", wire_packet(5))
+    assert future.result()["wire_probe"]["output_activity_observed"] is True
 
 
 @pytest.mark.asyncio
@@ -76,6 +116,9 @@ async def test_commands_supply_and_disable_confirmation():
         if op == OPS["forget_supply"]:
             powered = False
             flags = 0
+        if op == OPS["wire_check"]:
+            ring_reply(runtime, "one", wire_packet(nonce, high=0, transitions=0))
+            return
         ring_reply(runtime, "one", packet(nonce, op, flags=flags, brightness=arg if op == OPS["brightness"] else 32, result=result))
 
     cluster.request = request
@@ -86,6 +129,7 @@ async def test_commands_supply_and_disable_confirmation():
     assert (await ring_action(entry, "enable"))["enabled"]
     assert (await ring_action(entry, "test"))["test_active"]
     assert (await ring_action(entry, "brightness", 12))["brightness"] == 12
+    assert (await ring_action(entry, "wire_check"))["wire_probe"]["output_activity_observed"] is False
     assert not (await ring_action(entry, "disable"))["started"]
     assert calls[-2:] == [OPS["disable"], OPS["status"]]
     assert not (await ring_action(entry, "forget_supply"))["supply_confirmed"]
