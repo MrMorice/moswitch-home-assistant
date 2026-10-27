@@ -83,3 +83,16 @@ Abdeckung und einen wegen Abtastlücken unentschiedenen Befund. GPIO-Modus/Route
 werden roh und als Vergleich zu PC02/push-pull/TXPEN gemeldet. Das misst keine
 einzelnen Pulsbreiten,5V_LED oder das Signal hinter U3. Firmwaredetails und
 Prüfgrenzen stehen im Firmware-Integrationsworktree in docs/led-control.md.
+
+## Hardwarecapture0.1.25
+
+CPU-Readbacks mit0.1.47 blieben auf der Zielplatine wegen Datenfenster-Lücken
+unentschieden; alle acht LEDs sind laut Nutzer auch seitlich dunkel. Der neue
+0.1.48-Kandidat erfasst Flanken per Hardware, prüft seine Capturekette mit einem
+GPIO-Selbsttest und dekodiert192erwartete LED-Bits. Operation7 benutzt nun
+Protokollv3/56Bytes. Bestehende v1/v2-Antworten bleiben unterstützt. Es werden
+keine normalen Einstellungen, Entitäten oder Lichtaktionen ergänzt.
+`wire_check` Wert0Standard,1internes AutoCS,2internes AutoCS+RX; jede Variante
+wird nur im expliziten Test gesetzt und anschließend zurückgenommen. Der v3-
+Befund nennt die tatsächlich bestätigte Variante. Null Flanken sind nur mit
+bestandenem Selbsttest und ohne Erfassungsfehler aussagekräftig.

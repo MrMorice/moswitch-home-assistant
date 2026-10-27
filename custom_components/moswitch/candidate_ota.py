@@ -1,7 +1,7 @@
 """Admin-only, device-scoped installation of one pinned quiet test image.
 
 No provider registration, filesystem writes, remote downloads or global OTA index.
-The allowlist is the locally built 0.1.47 quiet candidate, not arbitrary firmware.
+The allowlist is the locally built 0.1.48 quiet candidate, not arbitrary firmware.
 """
 
 import asyncio
@@ -22,10 +22,10 @@ from zigpy.zcl.clusters.general import Ota
 
 _LOGGER = logging.getLogger(__name__)
 DATA = "moswitch_candidate_ota"
-VERSION = 0x0001002F
-SOURCE_VERSION = 0x0001002E
-SHA256 = "3dd38638f0c8298c3b848aa40079ff0d6a58e50b480f7f76095ce92d26e8c9d2"
-SIZE = 362082
+VERSION = 0x00010030
+SOURCE_VERSION = 0x0001002F
+SHA256 = "7899ca486f3fa5dbaa7bd31e6fa1424201e5d96d78accea7e475db220bf7060d"
+SIZE = 366082
 
 
 def decode_candidate(encoded):
@@ -36,7 +36,7 @@ def decode_candidate(encoded):
     except (binascii.Error, ValueError) as err:
         raise ValueError("Ungültige Testdatei") from err
     if len(data) != SIZE or hashlib.sha256(data).hexdigest() != SHA256:
-        raise ValueError("Nur der festgelegte stille Build 0.1.47 ist zugelassen")
+        raise ValueError("Nur der festgelegte stille Build 0.1.48 ist zugelassen")
     image, remaining = parse_ota_image(data)
     header = image.header
     if (remaining or header.manufacturer_id != 0xFFF1 or header.image_type != 1
@@ -62,7 +62,7 @@ async def install(entry, image, job):
         async with asyncio.timeout(30):
             values, _ = await ota.read_attributes(["current_file_version"], allow_cache=False)
         if values.get("current_file_version") != SOURCE_VERSION:
-            raise ValueError("Dieser Test erfordert den bisherigen Gerätestand 0.1.46")
+            raise ValueError("Dieser Test erfordert den bisherigen Gerätestand 0.1.47")
         # Demand a fresh physical report, not a cached test-mode checkbox.
         before = runtime.touch_received_at.get(entry.entry_id, 0)
         await runtime.test_touch(entry, True)
