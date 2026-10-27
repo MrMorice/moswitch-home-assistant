@@ -59,3 +59,14 @@ wartet beim TX-only-Start nicht auf RXIDLE. Zwölf native Firmwaretests und der
 saubere MG24-Build bestanden; die physische Korrekturprüfung steht noch aus.
 Der HA-Upload prüft weiterhin exakte Dateiidentität, Quellversion und frisch
 bestätigten stillen Diagnosestatus. Es gibt keine generelle Firmwarefreigabe.
+
+## Folgekorrektur 0.1.23
+
+Firmware0.1.45 wurde installiert. Der LED-Start antwortet mit Fehler7;
+Touchdiagnose und Funk bleiben frisch erreichbar. Der tatsächliche MG24-CMU-Mux
+unterstützt für EUSART0 die Taktgruppe C, nicht den bisher gewählten Wert A.
+Der festgelegte0.1.46-Build korrigiert dies, prüft Auswahl und Referenzfrequenz
+und behält die begrenzten Wartepfade bei. Interner Upload ausschließlich von
+0.1.45, Größe 361434, SHA-256 `d8acb7bb92b280b532f99e9fa57908eb653cf0f640205192176f520eb3a5780c`.
+Keine allgemeine Firmwarefreigabe und keine neue Licht- oder Raumaktion.
+Physische LED-Prüfung weiter offen.
