@@ -46,3 +46,16 @@ Abschaltbestätigung und Fehlerbereinigung. Geräte-/Browserabnahme dieser neuen
 Befehle wurde nicht durchgeführt. Die Oberfläche wurde nicht verändert.
 Firmwaredetails und offene Abnahme stehen im Firmware-Integrationsworktree unter
 `docs/led-control.md`.
+
+## Korrekturfreigabe 0.1.22
+
+Nach dem ersten Enable von Firmware0.1.44 fiel die Gerätekommunikation aus.
+Der Ring-Farbtest wurde nicht gestartet. Nach manuellem Neustart antwortet das
+Gerät wieder. Die interne, gerätebezogene Uploadfreigabe wechselt ausschließlich
+auf den stillen Korrekturkandidaten0.1.45 aus Gerätestand0.1.44, SHA-256
+`e840dc3e6680f9d2ec9ff4f998b3281d15fdc13cdb490f0ed608f2b11995b426`,
+361402Bytes. Dieser begrenzt die MG24-EUSART-Initialisierung/Abschaltung und
+wartet beim TX-only-Start nicht auf RXIDLE. Zwölf native Firmwaretests und der
+saubere MG24-Build bestanden; die physische Korrekturprüfung steht noch aus.
+Der HA-Upload prüft weiterhin exakte Dateiidentität, Quellversion und frisch
+bestätigten stillen Diagnosestatus. Es gibt keine generelle Firmwarefreigabe.
