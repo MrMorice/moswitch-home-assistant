@@ -1,7 +1,8 @@
 # LED-Diagnose: vorbereiteter Featurestand0.1.21
 
-Noch nicht installiert, veröffentlicht oder als Hardwarefunktion abgenommen.
-Die laufende Integration bleibt0.1.20 und die Platine0.1.42. Der vorhandene
+Die Vorbereitung ist durch den Nutzer zur Installation freigegeben; eine
+Hardwareabnahme der LED-Ausgabe steht weiterhin aus. Ausgangsstand vor diesem
+Installationsauftrag: HA0.1.20 und Platine0.1.42. Der vorhandene
 Einlernlauf wurde während der Abwesenheit des Nutzers still beendet; die spätere
 Antwort zur alten Testfrage wird nicht als neuer bestandener Durchlauf gewertet.
 

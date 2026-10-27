@@ -261,7 +261,7 @@ Datensätze zurückgegeben. Offset, Snapshotgeneration und Sampleanzahl müssen
 beim Zusammenfügen konsistent sein. Das ist ein Diagnosewerkzeug; es sendet
 keine Daten pro Touch-Sample und gibt keine Schaltaktionen frei.
 
-## LED-Vorbereitung (unveröffentlicht)
+## LED-Diagnose (ab0.1.21)
 
 Der Featurestand0.1.21 ergänzt interne Administrator-Diagnose über
 `moswitch/led/action`: status, confirm_supply, forget_supply, enable, disable,
@@ -275,8 +275,8 @@ entsprechen; ein Transport-ACK allein genügt nicht.
 
 Der hier vorbereitete Upload ist ausschließlich auf den lokalen kombinierten
 Firmwarekandidaten0.1.44 aus Gerätestand0.1.42 gepinnt. Dieser enthält die aktuellen
-Touchkorrekturen, sperrt Lichtaktionen und startet die LEDs deaktiviert. Der
-Featurestand wurde nicht installiert oder veröffentlicht. Hardwaretest mit
+Touchkorrekturen, sperrt Lichtaktionen und startet die LEDs deaktiviert. Die
+Installation des Teststands erfolgt ausdrücklich; Hardwaretest mit
 laufender Animation und abschließender Touchprüfung bleiben offen.
 
-Details der unveröffentlichten Vorbereitung: [LED-Diagnose](docs/led-preparation.md).
+Details zu Vorbereitung und offener Hardwareabnahme: [LED-Diagnose](docs/led-preparation.md).
