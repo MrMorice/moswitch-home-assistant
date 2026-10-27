@@ -52,6 +52,27 @@ def learning_message(status):
     return "Einlernen nicht abgeschlossen. Bitte den Touchstatus und die Verbindung prüfen."
 
 
+async def confirmed_touch_command(hass, entry, method, expected, *args):
+    """Require a fresh report after the command, rather than treating its ACK as state."""
+    runtime = entry.runtime_data
+    changed = asyncio.Event()
+    unsub = async_dispatcher_connect(
+        hass, f"{DOMAIN}_{entry.entry_id}", changed.set,
+    )
+    before = time.monotonic()
+    try:
+        await method(entry, *args)
+        async with asyncio.timeout(15):
+            while True:
+                changed.clear()
+                if (runtime.touch_received_at.get(entry.entry_id, 0) > before
+                        and expected(runtime.touch_status.get(entry.entry_id, {}))):
+                    return
+                await changed.wait()
+    finally:
+        unsub()
+
+
 class TouchWizard:
     """Options-flow steps; no action is enabled without explicit confirmation."""
 
@@ -65,24 +86,7 @@ class TouchWizard:
         return self._touch_runtime().touch_status.get(self.config_entry.entry_id, {})
 
     async def _touch_command(self, method, expected, *args):
-        """Require a fresh report after the command, rather than treating its ACK as state."""
-        runtime = self._touch_runtime()
-        changed = asyncio.Event()
-        unsub = async_dispatcher_connect(
-            self.hass, f"{DOMAIN}_{self.config_entry.entry_id}", changed.set,
-        )
-        before = time.monotonic()
-        try:
-            await method(self.config_entry, *args)
-            async with asyncio.timeout(15):
-                while True:
-                    changed.clear()
-                    if (runtime.touch_received_at.get(self.config_entry.entry_id, 0) > before
-                            and expected(self._touch_status())):
-                        return
-                    await changed.wait()
-        finally:
-            unsub()
+        await confirmed_touch_command(self.hass, self.config_entry, method, expected, *args)
 
     async def async_step_touch_setup(self, user_input=None):
         errors = {}

@@ -1,13 +1,16 @@
 {
   "domain": "moswitch",
   "name": "MoSwitch",
-  "version": "0.1.15",
+  "version": "0.1.16",
   "codeowners": [
     "@MrMorice"
   ],
   "config_flow": true,
   "dependencies": [
-    "zha"
+    "zha",
+    "panel_custom",
+    "http",
+    "websocket_api"
   ],
   "documentation": "https://github.com/MrMorice/moswitch-home-assistant",
   "integration_type": "helper",

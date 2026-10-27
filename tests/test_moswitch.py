@@ -385,7 +385,8 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
     assert state.attributes["weakest_tap_delta_us"] == 9
     assert all(not e.available for e in parameters)
     threshold = next(e for e in measurements if e.key == "press_threshold_us")
-    assert hass.states.get(threshold.entity_id).state == "20"
+    assert threshold.native_value == 20
+    assert hass.states.get(threshold.entity_id) is None  # Debug entities are opt-in.
     calibration_events = []
     hass.bus.async_listen("moswitch_calibration", lambda e: calibration_events.append(e.data))
     def report(feedback, pressed, taps, contacts, rejected, duration, version=3):
@@ -396,11 +397,11 @@ async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
         listener.cluster_command(2, 0x81, packet)  # Repeated report must not duplicate activity.
     report(3, True, 4, 5, 0, 0)
     await hass.async_block_till_done()
-    assert hass.states.get(contact.entity_id).state == "on"
+    assert contact.is_on is True
     assert "Kontakt erkannt" in hass.states.get(status.entity_id).state
     report(4, False, 5, 5, 0, 1000)
     await hass.async_block_till_done()
-    assert hass.states.get(contact.entity_id).state == "off"
+    assert contact.is_on is False
     assert hass.states.get(status.entity_id).state == "Tipp gezählt (5/10)"
     report(6, False, 5, 6, 1, 2100)
     await hass.async_block_till_done()
@@ -895,3 +896,211 @@ async def test_device_configuration_links_are_per_switch_without_duplicate_devic
     registry.async_update_device(second.id, configuration_url='https://example.com/other')
     await async_remove_entry(hass, two)
     assert registry.async_get(second.id).configuration_url == 'https://example.com/other'
+
+
+def panel_config(hass, physical):
+    from custom_components.moswitch.panel import PANEL_DATA
+    config = entry('moswitch', {'device_id': physical.id}, unique_id=next(
+        value for domain, value in physical.identifiers if domain == 'zha'))
+    hass.config_entries._entries[config.entry_id] = config
+    runtime = hass.data.setdefault('moswitch', Runtime(hass))
+    runtime.entries[config.entry_id] = config
+    config.runtime_data = runtime
+    hass.data[PANEL_DATA] = {'sessions': {}}
+    return config
+
+
+@pytest.mark.asyncio
+async def test_panel_snapshot_scopes_schema_and_names_to_selected_switch(hass):
+    import json
+    import time
+
+    from custom_components.moswitch.panel import panel_entry, snapshot
+
+    area_a = ar.async_get(hass).async_create('Sofa').id
+    area_b = ar.async_get(hass).async_create('Küche').id
+    one = panel_config(hass, device(hass, area_a))
+    two = panel_config(hass, device(hass, area_b, ieee='00:12:4b:00:01:02:03:05'))
+    player = entity(hass, 'media_player', 'kitchen_speaker', area=area_b)
+    entity(hass, 'scene', 'sofa_evening', area=area_a)
+    light = entity(hass, 'light', 'sofa_light', area=area_a)
+    one.runtime_data.touch_status[one.entry_id] = {'state': 3, 'calibrated': True, 'baseline_us': 18}
+    one.runtime_data.touch_received_at[one.entry_id] = time.monotonic()
+    first = snapshot(hass, one)
+    second = snapshot(hass, two)
+    assert first['fresh'] and not second['fresh']
+    assert first['touch']['baseline_us'] == 18 and second['touch'] == {}
+    assert first['area_id'] == area_a and second['area_id'] == area_b
+    assert first['lights'][0]['entity_id'] == light.entity_id
+    assert player.entity_id not in json.dumps(first['schema'])
+    assert player.entity_id in json.dumps(second['schema'])
+    preview = snapshot(hass, one, area_id=area_b)
+    assert player.entity_id in json.dumps(preview['schema'])
+    assert dr.async_get(hass).async_get(one.data['device_id']).area_id == area_a
+    assert panel_entry(hass, two.entry_id) is two
+    with pytest.raises(ValueError):
+        panel_entry(hass, 'unknown')
+    json.dumps(first)  # All websocket fields must be serializable.
+
+
+@pytest.mark.asyncio
+async def test_panel_saves_area_and_options_for_exactly_one_device(hass):
+    from custom_components.moswitch.panel import save_settings
+
+    area_a = ar.async_get(hass).async_create('Sofa').id
+    area_b = ar.async_get(hass).async_create('Küche').id
+    one = panel_config(hass, device(hass, area_a))
+    two = panel_config(hass, device(hass, area_a, ieee='00:12:4b:00:01:02:03:05'))
+    one.runtime_data.options_updated = AsyncMock()
+    player = entity(hass, 'media_player', 'kitchen_speaker', area=area_b)
+    options = {'double_action': 'media', 'players': [player.entity_id], 'actions': [], 'scene_order': []}
+    with pytest.raises(ValueError):
+        await save_settings(hass, one, area_a, options)
+    with pytest.raises(ValueError):
+        await save_settings(hass, one, 'missing', options)
+    assert dr.async_get(hass).async_get(one.data['device_id']).area_id == area_a
+    await save_settings(hass, one, area_b, options)
+    assert dr.async_get(hass).async_get(one.data['device_id']).area_id == area_b
+    assert dr.async_get(hass).async_get(two.data['device_id']).area_id == area_a
+    assert one.options == options and not two.options
+    one.runtime_data.options_updated.assert_awaited_once_with(one)
+
+
+@pytest.mark.asyncio
+async def test_panel_session_and_admin_validation(hass):
+    from homeassistant.exceptions import Unauthorized
+
+    from custom_components.moswitch.panel import PANEL_DATA, _session, ws_subscribe
+
+    config = panel_config(hass, device(hass))
+    owner = SimpleNamespace(user=SimpleNamespace(is_admin=True))
+    another = SimpleNamespace(user=SimpleNamespace(is_admin=True))
+    hass.data[PANEL_DATA]['sessions']['s'] = {'entry': config.entry_id, 'connection': owner, 'owns': False}
+    msg = {'entry_id': config.entry_id, 'session': 's'}
+    assert _session(hass, owner, msg)[0] is config
+    with pytest.raises(ValueError):
+        _session(hass, another, msg)
+    with pytest.raises(Unauthorized):
+        ws_subscribe(hass, SimpleNamespace(user=SimpleNamespace(is_admin=False)), msg)
+
+
+@pytest.mark.asyncio
+async def test_panel_disconnect_cancels_only_owned_active_learning(hass):
+    from unittest.mock import Mock
+
+    from custom_components.moswitch.panel import ws_subscribe
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.cancel_touch = AsyncMock()
+    runtime.touch_status[config.entry_id] = {'state': 7}
+    conn = SimpleNamespace(user=SimpleNamespace(is_admin=True), subscriptions={}, send_result=Mock(), send_event=Mock())
+    ws_subscribe(hass, conn, {'id': 1, 'entry_id': config.entry_id, 'session': 'a'})
+    conn.subscriptions[1]()
+    await hass.async_block_till_done()
+    runtime.cancel_touch.assert_not_awaited()
+    ws_subscribe(hass, conn, {'id': 2, 'entry_id': config.entry_id, 'session': 'b'})
+    hass.data['moswitch_panel']['sessions']['b']['owns'] = True
+    conn.subscriptions[2]()
+    await hass.async_block_till_done()
+    runtime.cancel_touch.assert_awaited_once_with(config)
+    runtime.cancel_touch.reset_mock()
+    runtime.touch_status[config.entry_id] = {'state': 3, 'test_mode': True}
+    ws_subscribe(hass, conn, {'id': 3, 'entry_id': config.entry_id, 'session': 'c'})
+    hass.data['moswitch_panel']['sessions']['c']['owns'] = True
+    conn.subscriptions[3]()
+    await hass.async_block_till_done()
+    runtime.cancel_touch.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_entity_cleanup_preserves_ids_and_user_choices_and_zha(hass):
+    from custom_components.moswitch.entity_layout import migrate_entity_layout
+
+    physical = device(hass)
+    config = panel_config(hass, physical)
+    registry = er.async_get(hass)
+    def create(suffix, platform='moswitch', owner=config.entry_id):
+        return registry.async_get_or_create('sensor', platform, f'{IEEE}_{suffix}',
+            config_entry=hass.config_entries.async_get_entry(owner), device_id=physical.id)
+    number = create('touch_parameter_baseline_us')
+    reading = create('touch_measurement_raw_us')
+    status = create('touch_calibration')
+    zha = create('firmware_update', 'zha', physical.config_entry_id)
+    user = create('touch_contact')
+    registry.async_update_entity(user.entity_id, disabled_by=er.RegistryEntryDisabler.USER)
+    migrate_entity_layout(hass, config)
+    assert registry.async_get(number.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get(reading.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
+    assert registry.async_get(status.entity_id).disabled_by is None
+    assert registry.async_get(zha.entity_id).disabled_by is None
+    assert registry.async_get(user.entity_id).disabled_by is er.RegistryEntryDisabler.USER
+    registry.async_update_entity(number.entity_id, disabled_by=None)
+    migrate_entity_layout(hass, config)
+    assert registry.async_get(number.entity_id).disabled_by is None  # Respect later re-enabling.
+    assert config.data['ui_layout_version'] == 1
+
+
+@pytest.mark.asyncio
+async def test_old_controls_are_disabled_by_default_but_status_remains(hass):
+    from custom_components.moswitch.binary_sensor import TouchContact
+    from custom_components.moswitch.button import CalibrateTouch
+    from custom_components.moswitch.number import TouchParameter
+    from custom_components.moswitch.sensor import TouchMeasurement, TouchStatus
+    from custom_components.moswitch.switch import TouchTestMode
+
+    config = panel_config(hass, device(hass))
+    for item in [TouchContact(config), CalibrateTouch(config), TouchParameter(config, 'baseline_us', 'Baseline'),
+                 TouchMeasurement(config, 'raw_us', 'Raw', 'µs'), TouchTestMode(config)]:
+        assert not item.entity_registry_enabled_default
+    assert TouchStatus(config).entity_registry_enabled_default
+
+
+@pytest.mark.asyncio
+async def test_closed_panel_does_not_start_learning_after_query(hass):
+    import inspect
+    import time
+    from unittest.mock import Mock
+
+    from custom_components.moswitch.panel import PANEL_DATA, ws_action
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    conn = SimpleNamespace(send_result=Mock(), send_error=Mock())
+    session = {'entry': config.entry_id, 'connection': conn, 'owns': False}
+    hass.data[PANEL_DATA]['sessions']['s'] = session
+    async def query(config):
+        runtime.touch_status[config.entry_id] = {'state': 3, 'protocol_version': 7, 'frontend_active': True}
+        runtime.touch_received_at[config.entry_id] = time.monotonic()
+        hass.data[PANEL_DATA]['sessions'].pop('s')
+    runtime.query_touch = query
+    runtime.calibrate_touch = AsyncMock()
+    await inspect.unwrap(ws_action)(hass, conn, {
+        'id': 1, 'entry_id': config.entry_id, 'session': 's', 'action': 'prepare'})
+    runtime.calibrate_touch.assert_not_awaited()
+    conn.send_error.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_panel_activation_requires_explicit_command_and_fresh_normal_report(hass):
+    import inspect
+    import time
+    from unittest.mock import Mock
+
+    from custom_components.moswitch.panel import PANEL_DATA, ws_action
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.touch_status[config.entry_id] = {'state': 10, 'calibrated': True, 'test_mode': True}
+    conn = SimpleNamespace(send_result=Mock(), send_error=Mock())
+    hass.data[PANEL_DATA]['sessions']['s'] = {'entry': config.entry_id, 'connection': conn, 'owns': False}
+    async def normal(config, enabled):
+        assert not enabled
+        runtime.touch_status[config.entry_id] = {'state': 3, 'calibrated': True, 'test_mode': False}
+        runtime.touch_received_at[config.entry_id] = time.monotonic()
+    runtime.test_touch = AsyncMock(side_effect=normal)
+    await inspect.unwrap(ws_action)(hass, conn, {
+        'id': 1, 'entry_id': config.entry_id, 'session': 's', 'action': 'activate'})
+    runtime.test_touch.assert_awaited_once_with(config, False)
+    conn.send_error.assert_not_called()
+    assert conn.send_result.call_args.args[1]['touch']['test_mode'] is False

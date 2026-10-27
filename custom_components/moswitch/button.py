@@ -21,6 +21,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class CalibrateTouch(ButtonEntity):
+    _attr_entity_registry_enabled_default = False
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:gesture-tap"
     _attr_should_poll = False

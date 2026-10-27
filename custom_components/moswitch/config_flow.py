@@ -14,8 +14,8 @@ from .rooms import device_area, ieee_for_device, room_entities
 from .touch_wizard import TouchWizard
 
 
-def options_schema(hass, device_id, options):
-    area_id = device_area(hass, device_id)
+def options_schema(hass, device_id, options, *, area_id=None):
+    area_id = area_id or device_area(hass, device_id)
     players = (
         [entry.entity_id for entry in room_entities(hass, area_id, "media_player")]
         if area_id

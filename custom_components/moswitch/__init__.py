@@ -1,10 +1,14 @@
 """MoSwitch room configuration on top of ZHA."""
 
+import asyncio
+
 from homeassistant.const import Platform
 from homeassistant.helpers import config_validation as cv
 
 from .const import DOMAIN
 from .device_configuration import attach_configuration_link, remove_configuration_link
+from .entity_layout import migrate_entity_layout
+from .panel import async_register
 from .runtime import Runtime
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
@@ -12,11 +16,14 @@ PLATFORMS = [Platform.SENSOR, Platform.BUTTON, Platform.BINARY_SENSOR, Platform.
 
 
 async def async_setup_entry(hass, entry):
-    runtime = hass.data.get(DOMAIN)
-    if runtime is None:
-        runtime = Runtime(hass)
-        await runtime.start()
-        hass.data[DOMAIN] = runtime
+    async with hass.data.setdefault(f"{DOMAIN}_setup_lock", asyncio.Lock()):
+        await async_register(hass)
+        runtime = hass.data.get(DOMAIN)
+        if runtime is None:
+            runtime = Runtime(hass)
+            await runtime.start()
+            hass.data[DOMAIN] = runtime
+    migrate_entity_layout(hass, entry)
     runtime.entries[entry.entry_id] = entry
     entry.runtime_data = runtime
     attach_configuration_link(hass, entry)
