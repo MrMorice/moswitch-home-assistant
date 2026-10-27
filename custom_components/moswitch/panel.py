@@ -103,6 +103,7 @@ async def async_register(hass):
     from homeassistant.components import frontend, panel_custom
 
     from .candidate_ota import register as register_candidate_ota
+    from .touch_trace import ws_trace
 
     hass.data[PANEL_DATA] = {"sessions": {}}
     await hass.http.async_register_static_paths([StaticPathConfig(
@@ -116,6 +117,7 @@ async def async_register(hass):
         module_url="/moswitch_static/device-settings.js?v=0.1.17", require_admin=True,
     )
     register_candidate_ota(hass)
+    websocket_api.async_register_command(hass, ws_trace)
     for handler in (ws_subscribe, ws_action, ws_save, ws_preview, ws_info):
         websocket_api.async_register_command(hass, handler)
 
