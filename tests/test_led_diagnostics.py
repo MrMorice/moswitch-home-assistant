@@ -73,6 +73,12 @@ def test_hardware_edge_capture_requires_working_gpio_self_test_for_negative():
         assert parse_ring(bad) is None
 
 
+def test_capture_resource_refusal_is_specific_and_not_a_signal_failure():
+    p = parse_ring(edge_packet(edges=0, levels=0, faults=1 | (16 << 16), timer_hz=0))["wire_probe"]
+    assert p["resource_blockers"] == ["prs11"]
+    assert p["output_activity_observed"] is None and not p["coverage_sufficient"]
+
+
 @pytest.mark.asyncio
 async def test_wire_transport_variant_is_explicit_and_device_confirmed():
     cluster = SimpleNamespace()
