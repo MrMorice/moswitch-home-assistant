@@ -105,4 +105,4 @@ class TouchTuningParameter(TouchParameter):
 
     @property
     def native_max_value(self):
-        return self.bounds[1]
+        return 30 if self.key == "gap_grace_ms" and self.status.get("protocol_version", 0) < 7 else self.bounds[1]

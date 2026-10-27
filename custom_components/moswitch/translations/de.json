@@ -39,15 +39,15 @@
         "description": "Diese Einstellungen gelten für {device}."
       },
       "touch_setup": {
-        "title": "Touchfläche einlernen · 1/3 · {device}",
-        "description": "Die Scheibe zuerst vollständig montieren. Während des Einlernens bleiben Licht-, Szenen- und Medienaktionen gesperrt.\n\nMit Weiter bereitest du den Schalter vor. Im nächsten Schritt bestätigst du, dass die Fläche unberührt ist. Die bisherigen Kalibrierwerte bleiben bis zum erfolgreichen Abschluss erhalten.\n\nBeim Schließen bleibt der stille Testmodus aktiv."
+        "title": "Touchfläche einlernen · Vorbereitung · {device}",
+        "description": "Die Touchfläche mit Scheibe und Abdeckung fertig montieren und die vorgesehene Stromversorgung anschließen. Während des Einlernens bleiben alle Schaltaktionen gesperrt.\n\nWir messen zuerst das Ruhesignal, lernen zehn kurze Tipps und prüfen anschließend einen gehaltenen Kontakt und das Loslassen. Erst danach werden die neuen Werte gespeichert. Die bisherigen Werte bleiben bei Abbruch oder Fehler erhalten.\n\nMit Weiter wird der stille Einlernmodus vorbereitet."
       },
       "touch_baseline": {
-        "title": "Fläche loslassen · 2/3 · {device}",
-        "description": "Nimm jetzt den Finger vollständig von der Fläche.\n\nDrücke erst dann Weiter. Der Schalter misst etwa vier Sekunden ohne Berührung. Anschließend pulsiert die LED und du kannst zehnmal kurz tippen. Vor dem ersten Tipp läuft kein Zeitlimit."
+        "title": "Ruhewert messen · 1/3 · {device}",
+        "description": "Die Fläche vollständig loslassen und erst dann Weiter drücken. Etwa vier Sekunden unberührt lassen. Danach folgen zehn kurze Tipps und der Haltetest. Vor dem ersten Tipp läuft kein Zeitlimit."
       },
       "touch_watch": {
-        "title": "Zehn Tipps einlernen · 3/3 · {device}",
+        "title": "Tipps und Haltetest · {device}",
         "description": "{status}\n\nLicht-, Szenen- und Medienaktionen bleiben gesperrt. Beim Schließen wird der Lernvorgang abgebrochen; der stille Testmodus bleibt aktiv."
       },
       "touch_result": {
@@ -63,7 +63,7 @@
       "room_players_only": "Nur Mediaplayer aus dem Raum auswählen.",
       "room_scenes_only": "Nur Szenen aus dem Raum auswählen.",
       "invalid_actions": "Bitte die eigene Aktion prüfen.",
-      "touch_upgrade": "Für den geführten Ablauf ist Firmware ab 0.1.24 erforderlich.",
+      "touch_upgrade": "Für Ruhewert, zehn Tipps und Haltetest ist ACMP-Firmware ab 0.1.35 erforderlich.",
       "touch_connection": "Keine bestätigte Rückmeldung vom Schalter. Touchstatus prüfen und erneut versuchen; der stille Testmodus bleibt aktiv, falls er bereits eingeschaltet wurde."
     },
     "progress": {

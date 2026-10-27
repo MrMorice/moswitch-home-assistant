@@ -28,9 +28,22 @@ def learning_message(status):
         else:
             clock = (f"Noch {status.get('learning_remaining_s', 0)} Sekunden bis zum Abbruch bei Inaktivität. "
                      "Jeder erkannte Kontakt erneuert die Frist.")
-        return f"**{count} von 10 Tipps gezählt**\n\n{feedback}.\n\n{clock}\n\nZwischen den Tipps vollständig loslassen."
+        signal = (f"Ruhewert: {status.get('learning_baseline_us', '–')} µs; "
+                  f"Ruheschwankung: {status.get('idle_noise_us', '–')} µs.")
+        return f"**{count} von 10 Tipps gezählt**\n\n{feedback}.\n\n{clock}\n\n{signal}\n\nZwischen den Tipps vollständig loslassen."
+    if state == 11:
+        return "**10 von 10 Tipps erfasst – noch nicht gespeichert.**\n\nZuerst kurz vollständig loslassen. Dann die Fläche einmal berühren und mindestens zwei Sekunden halten. Die LED leuchtet bei erkanntem Kontakt. Erst loslassen, wenn hier die Aufforderung erscheint."
+    if state == 12:
+        seconds = status.get("hold_remaining_ms", 2000) / 1000
+        return f"**Haltetest läuft: noch etwa {seconds:.1f} Sekunden.**\n\nFinger liegen lassen. Der Schalter prüft, ob der Kontakt ohne Unterbrechung erkannt wird."
+    if state == 13:
+        return "**Haltetest bestanden – jetzt vollständig loslassen.**\n\nNach einer stabilen Ruhephase speichert der Schalter die neuen Werte. Schaltaktionen bleiben gesperrt."
     if state == 3:
-        return "**10 von 10 Tipps gespeichert.** Du kannst den Schalter jetzt zum Schalten freigeben oder im stillen Testmodus bleiben."
+        return ("**Einlernen erfolgreich abgeschlossen und gespeichert.**\n\n"
+                f"Ruhewert: {status.get('baseline_us', '–')} µs; "
+                f"Einschaltabstand: {status.get('press_delta_us', '–')} µs; "
+                f"Loslassabstand: {status.get('release_delta_us', '–')} µs.\n\n"
+                "Du kannst den Schalter jetzt zum Schalten freigeben oder im stillen Testmodus bleiben.")
     reason = TOUCH_FAILURES.get(status.get("failure_reason"))
     if state == 4:
         return f"Einlernen beendet: {reason or 'Kalibrierung fehlgeschlagen'}. Die bisherigen Werte bleiben erhalten."
@@ -78,8 +91,10 @@ class TouchWizard:
                 await self._touch_command(
                     self._touch_runtime().query_touch, lambda s: True,
                 )
-                if self._touch_status().get("protocol_version", 0) < 6:
+                if self._touch_status().get("protocol_version", 0) < 7:
                     errors["base"] = "touch_upgrade"
+                elif not self._touch_status().get("frontend_active"):
+                    errors["base"] = "touch_connection"
                 else:
                     await self._touch_command(
                         self._touch_runtime().calibrate_touch, lambda s: s.get("state") == 9,
@@ -116,14 +131,20 @@ class TouchWizard:
             while True:
                 changed.clear()
                 status = self._touch_status()
-                self.async_update_progress(status.get("learning_taps", 0) / 10)
+                state = status.get("state")
+                progress = (status.get("learning_taps", 0) / 10) * 0.75
+                if state in (11, 12, 13):
+                    progress = 0.75 + (1 - status.get("hold_remaining_ms", 2000) / 2000) * 0.2
+                if state == 3:
+                    progress = 1
+                self.async_update_progress(progress)
                 signature = tuple(status.get(k) for k in (
-                    "state", "feedback", "learning_taps", "learning_remaining_s", "detected_contacts",
+                    "state", "feedback", "learning_taps", "learning_remaining_s", "detected_contacts", "hold_remaining_ms",
                 ))
                 if signature != previous:
                     previous = signature
                     self.async_notify_flow_changed()
-                if status.get("state") not in (1, 2, 7):
+                if status.get("state") not in (1, 2, 7, 11, 12, 13):
                     return
                 await asyncio.wait_for(changed.wait(), timeout=120)
         except TimeoutError:
