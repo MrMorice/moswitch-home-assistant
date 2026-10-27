@@ -4,7 +4,7 @@ MoSwitch ergänzt einen kapazitiven Zigbee-Raumschalter um automatische
 Raumzuordnung, Szenenwechsel und konfigurierbare Doppeltipp-Aktionen in Home
 Assistant mit ZHA. Die Integration wird über HACS installiert.
 
-**Entwicklungsstand 0.1.7:** Erste Testversion für die MoSwitch-Bench-Firmware.
+**Entwicklungsstand 0.1.16:** Integration für die MoSwitch-Bench-Firmware.
 Keine fertige Produktfreigabe. Die Integration wird mit Home Assistant 2026.10.2
 und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet werden.
 
@@ -16,40 +16,49 @@ und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet w
    zuordnen. Die Lampen müssen direkt im selben ZHA-Netz angemeldet sein.
 3. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen → MoSwitch**
    den Schalter auswählen. Alle physischen Raumlampen werden automatisch ermittelt.
-4. In den Optionen der MoSwitch-Integration die Doppeltipp-Aktion wählen:
-   Play/Pause mit einem oder mehreren Raumplayern, eigene HA-Aktion oder keine Aktion.
-5. Die Raumszenen in gewünschter Reihenfolge auswählen. Szenen mit dem von der
-   Integration angelegten Label **MoSwitch ignorieren** werden übersprungen.
+4. Auf der **ZHA-Geräteseite → Geräte-Informationen → Besuchen** die Einstellungen
+   dieses Schalters öffnen. Der interne Link führt direkt zu Raum, Touchfläche
+   und Aktionen. Jeder Schalter hat einen eigenen Link und seine eigene Zuordnung.
+5. Den Raum prüfen, Doppeltipp-Aktion wählen und die Szenenreihenfolge festlegen.
+   **Zuordnung speichern** übernimmt Raum und Aktionen zusammen. Bei einem
+   Raumwechsel werden Mediengeräte und Szenen für den neuen Raum neu ausgewählt.
 
-Die Szenenreihenfolge gilt für alle MoSwitches im Raum. Ein Diagnose-Sensor zeigt
-an, ob die technische Einrichtung erfolgreich war. Der Statusring wird nicht als
-Lampe in HA angelegt. Raumänderungen werden ohne erneutes Kompilieren der
-Firmware erkannt. Reines Lichtschalten erfolgt auf dem Schalter, niemals durch
-zusätzliche HA-Toggle-Automationen.
+Die Szenenreihenfolge gilt für alle MoSwitches im Raum. Raumlampen werden anhand
+normaler HA-Raumzuordnungen automatisch ermittelt. Das Panel zeigt diese Leuchten
+und kennzeichnet Geräte, die keine direkte ZHA-Steuerung unterstützen. Der Statusring
+wird nicht als Lampe angelegt. Einfach-Tipps schalten direkt in der Firmware;
+HA sendet dafür keinen zusätzlichen Toggle.
 
-## Touch kalibrieren
+## Touchfläche einlernen
 
-Ab Version 0.1.7 gibt es beim vorhandenen ZHA-Schalter unter Konfiguration
-**Touch kalibrieren** und **Kalibrierung abbrechen**. Der Diagnosesensor
-**Touchkalibrierung** zeigt den Ablauf und „Bitte tippen: n/10“.
-Firmware-Diagnosestand ab 0.1.8 ist für das geführte Lernen erforderlich.
+Auf derselben Einstellungsseite **Touchfläche einlernen** wählen. Der neue Ablauf
+benötigt Protokoll 7 und eine aktive Touchmessung; aktuell geprüft mit Firmware
+0.1.38. Messingscheibe und endgültigen Aufbau vor dem Einlernen montieren.
 
-1. Den Schalter unberührt auf seiner üblichen Unterlage lassen und den
-   Kalibrierknopf drücken. Vier Sekunden nicht berühren.
-2. Sobald „Bitte tippen: 0/10“ erscheint, zehnmal wie im Alltag kurz tippen,
-   jeweils vollständig loslassen und etwa 0,3–1 Sekunden Abstand lassen.
-3. Jeder vollständig erkannte Tipp erhöht den Zähler. Die einfarbige
-   XIAO-Onboard-LED atmet während des Lernens und leuchtet bei Kontakt auf.
-4. Erst „Kalibriert“ bestätigt das gespeicherte Ergebnis. Bis dahin sind
-   normale Licht-/Mediengesten gesperrt. Nach 90 Sekunden ohne Abschluss
-   oder beim Abbrechen bleibt die vorige Kalibrierung erhalten.
+1. Die Fläche vollständig loslassen und **Ruhemessung starten** wählen.
+2. Etwa vier Sekunden unberührt lassen. Der Assistent wechselt danach selbst
+   zur Anzeige **0 / 10**.
+3. Zehnmal kurz tippen und dazwischen vollständig loslassen. Zähler und Hinweise
+   folgen bestätigten Geräteberichten.
+4. Nach dem zehnten Tipp nochmals berühren und halten, bis **Jetzt loslassen**
+   erscheint. Erst dann den Finger wegnehmen.
+5. Das gespeicherte Ergebnis prüfen. **Zum Schalten freigeben** aktiviert den
+   Schalter ausdrücklich; **Im stillen Testmodus bleiben** hält Aktionen gesperrt.
 
-Mit Messingscheibe und Gehäuse erneut lernen. Blaues Ringfeedback ist Teil
-der späteren Ring-Inbetriebnahme; im derzeitigen USB-Aufbau wird die
-Onboard-LED verwendet. Der Status zeigt Rohwerte, Schwellen und schwächsten
-Lerntipp als Attribute. Die Entities werden direkt dem ausgewählten bestehenden
-ZHA-Gerät zugeordnet. Ab Firmware 0.1.5 bleiben alte Ruhe-Kalibrierungen lesbar;
-der Zehn-Tipp-Modus erfordert die neue Firmware.
+Abbruch, Verbindungsabbruch oder Schließen aktivieren keine Schaltaktionen.
+Eine von dieser Seite gestartete laufende Lernsitzung wird beim Schließen
+abgebrochen. Der stille Diagnosemodus kann ebenfalls hier eingeschaltet werden;
+eine vorhandene gültige Kalibrierung lässt sich ausdrücklich wieder freigeben.
+
+Unter **Diagnose und Feineinstellung** stehen Messwerte, gespeicherte Parameter,
+manuelle Parameteränderungen und technische Daten. Bestätigte Werte bleiben auch
+ohne aktivierte einzelne Diagnose-Entities verfügbar. Die alten Touch-Buttons,
+Number-Entities, Einzelmessungen, Kontakt- und Testmodus-Entity werden mit 0.1.16
+einmalig deaktiviert. Ihre IDs bleiben erhalten; gezieltes späteres Reaktivieren
+wird respektiert. ZHA-Firmwareupdate, Identifizieren und der Touchstatus bleiben
+auf der normalen Geräteseite. Die MoSwitch-Optionsdialoge bleiben als Rückfallweg
+verfügbar. Die neue Seite ist für Administratoren freigegeben und benötigt weder
+Dashboard-Karten noch zusätzliche Frontend-Abhängigkeiten.
 
 ## Aktivitäten beim Schalter
 

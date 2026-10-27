@@ -16,6 +16,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 
 class TouchContact(BinarySensorEntity):
+    _attr_entity_registry_enabled_default = False
     _attr_should_poll = False
     _attr_icon = "mdi:gesture-tap"
 

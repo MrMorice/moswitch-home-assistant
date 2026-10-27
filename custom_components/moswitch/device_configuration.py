@@ -4,11 +4,11 @@ from urllib.parse import quote
 
 from homeassistant.helpers import device_registry as dr
 
-PREFIX = "homeassistant://config/integrations/integration/moswitch#config_entry="
+PREFIX = "homeassistant://moswitch/"
 
 
 def configuration_url(entry):
-    """HA highlights the requested config entry, even with many switches."""
+    """Open the selected physical switch directly in the hidden settings panel."""
     return PREFIX + quote(entry.entry_id, safe="")
 
 

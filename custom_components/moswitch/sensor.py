@@ -128,6 +128,7 @@ class TouchStatus(ConfigurationStatus):
 
 
 class TouchMeasurement(TouchStatus):
+    _attr_entity_registry_enabled_default = False
     _attr_should_poll = False
     _attr_entity_category = None
 
