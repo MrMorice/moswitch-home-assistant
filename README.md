@@ -242,7 +242,7 @@ Zuordnung, alle Lernphasen, Beenden im stillen Modus, ausdrückliche Freigabe,
 Escape, Mobilansicht, Themevariablen und den Schutz vor falscher Gerätezuordnung.
 Er ersetzt keinen physischen Einlerndurchlauf.
 
-### Isolierter 24V-Test per OTA
+### Isolierter 24V-Test per OTA (veröffentlichter Stand0.1.20)
 
 HA0.1.20 stellt für Administratoren `moswitch/firmware/install_test` und
 `moswitch/firmware/test_status` als gerätebezogene WebSocket-Befehle bereit.
@@ -260,3 +260,23 @@ Lernlauf im stillen Modus gerätebezogen aus. Pro Anfrage werden maximal vier
 Datensätze zurückgegeben. Offset, Snapshotgeneration und Sampleanzahl müssen
 beim Zusammenfügen konsistent sein. Das ist ein Diagnosewerkzeug; es sendet
 keine Daten pro Touch-Sample und gibt keine Schaltaktionen frei.
+
+## LED-Vorbereitung (unveröffentlicht)
+
+Der Featurestand0.1.21 ergänzt interne Administrator-Diagnose über
+`moswitch/led/action`: status, confirm_supply, forget_supply, enable, disable,
+test, brightness0..64. Es wird keine Ring-Licht-Entity angelegt. Es gibt keinen
+automatischen Start und keine automatische Bestätigung einer Versorgung.
+`confirm_supply` ist eine Bedieneraussage über vorhandene5V_LED, keine Messung.
+`disable` bestätigt die asynchrone Schwarz-Ausgabe samt Ressourcenfreigabe.
+`forget_supply` erzwingt Daten LOW, kann aber eine weiterhin versorgte LED nicht
+per Datenframe löschen. Antworten müssen Gerät, zufälliger Nonce und Operation
+entsprechen; ein Transport-ACK allein genügt nicht.
+
+Der hier vorbereitete Upload ist ausschließlich auf den lokalen kombinierten
+Firmwarekandidaten0.1.44 aus Gerätestand0.1.42 gepinnt. Dieser enthält die aktuellen
+Touchkorrekturen, sperrt Lichtaktionen und startet die LEDs deaktiviert. Der
+Featurestand wurde nicht installiert oder veröffentlicht. Hardwaretest mit
+laufender Animation und abschließender Touchprüfung bleiben offen.
+
+Details der unveröffentlichten Vorbereitung: [LED-Diagnose](docs/led-preparation.md).
