@@ -241,3 +241,16 @@ Die Datei enthält `url` und `token`. Optional sind `BROWSER_CHANNEL` und
 Zuordnung, alle Lernphasen, Beenden im stillen Modus, ausdrückliche Freigabe,
 Escape, Mobilansicht, Themevariablen und den Schutz vor falscher Gerätezuordnung.
 Er ersetzt keinen physischen Einlerndurchlauf.
+
+### Isolierter 24V-Test per OTA
+
+HA0.1.18 stellt für Administratoren `moswitch/firmware/install_test` und
+`moswitch/firmware/test_status` als gerätebezogene WebSocket-Befehle bereit.
+Der Upload akzeptiert ausschließlich den SHA-256-gepinnten stillen
+Firmwarekandidaten0.1.40 auf einem MoSwitch v1 mit Gerätestand0.1.38. Vor dem
+Transfer wird ein frischer stiller Diagnosezustand vom Gerät verlangt. Die
+Datei wird im RAM nur an diesen Zigpy-Geräteknoten übertragen; es gibt keine
+Registrierung als globaler OTA-Anbieter und keinen Eintrag im öffentlichen
+Update-Index. Disconnects des Upload-Clients brechen einen laufenden Transfer
+nicht ab. Status und Fehler sind pro Config-Entry abrufbar. Der Kandidat sperrt
+Aktionen dauerhaft und braucht eine eigene neue Kalibrierung.
