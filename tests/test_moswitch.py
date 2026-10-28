@@ -1208,3 +1208,14 @@ async def test_native_double_tap_change_keeps_shared_room_scene_order(hass):
     control.hass = hass
     await control.async_select_option('none')
     assert config.options['scene_order'] == ['scene.latest']
+
+
+def test_hold_retry_keeps_taps_and_failure_explanation_is_not_duplicated():
+    from custom_components.moswitch.touch_wizard import learning_message
+
+    status = protocol.touch_status(v7_packet(11, 10, 10, feedback=8, hold_ms=2000))
+    text = learning_message(status)
+    assert "wiederholen" in text and "zehn Tipps bleiben erhalten" in text
+    assert "gültige Messungen" in text and "noch nicht gespeichert" in text
+    failed = learning_message({"state": 4, "failure_reason": 7})
+    assert failed == "Einlernen beendet: Haltetest unterbrochen. Die bisherigen Werte bleiben erhalten."

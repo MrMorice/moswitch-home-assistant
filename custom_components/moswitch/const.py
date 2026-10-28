@@ -28,5 +28,5 @@ TOUCH_FAILURES = {
     4: "Ruhemessung zu unruhig",
     5: "ungültige Kalibrierwerte",
     6: "Zeitlimit erreicht",
-    7: "Haltetest unterbrochen; die bisherigen Werte bleiben erhalten",
+    7: "Haltetest unterbrochen",
 }

@@ -31,6 +31,11 @@ def learning_message(status):
         signal = (f"Ruhewert: {status.get('learning_baseline_us', '–')} µs; "
                   f"Ruheschwankung: {status.get('idle_noise_us', '–')} µs.")
         return f"**{count} von 10 Tipps gezählt**\n\n{feedback}.\n\n{clock}\n\n{signal}\n\nZwischen den Tipps vollständig loslassen."
+    if state == 11 and status.get("feedback") == 8:
+        return ("**Haltetest bitte wiederholen – die zehn Tipps bleiben erhalten.**\n\n"
+                "Der Kontakt wurde unterbrochen oder es gab zu wenig gültige Messungen. "
+                "Die Fläche vollständig loslassen, dann erneut berühren und bis zur Aufforderung halten. "
+                "Die neuen Werte sind noch nicht gespeichert. Schaltaktionen bleiben gesperrt.")
     if state == 11:
         return "**10 von 10 Tipps erfasst – noch nicht gespeichert.**\n\nZuerst kurz vollständig loslassen. Dann die Fläche einmal berühren und mindestens zwei Sekunden halten. Die LED leuchtet bei erkanntem Kontakt. Erst loslassen, wenn hier die Aufforderung erscheint."
     if state == 12:
