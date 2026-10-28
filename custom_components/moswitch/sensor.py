@@ -113,6 +113,8 @@ class TouchStatus(ConfigurationStatus):
         return {key: value for key, value in status.items() if key != "state"}
 
     async def async_update(self):
+        if self.entry.entry_id in getattr(self.entry.runtime_data, "ota_active_entries", set()):
+            return
         try:
             await self.entry.runtime_data.query_touch(self.entry)
             self._query_failed_at = 0

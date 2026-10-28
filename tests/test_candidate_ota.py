@@ -12,6 +12,13 @@ from zigpy.zcl import foundation
 from custom_components.moswitch import candidate_ota as candidate
 
 
+@pytest.fixture(autouse=True)
+def legacy_transfer_mock(monkeypatch):
+    async def transfer(device, image, progress_callback, job, profile):
+        return await device.update_firmware(image=image, progress_callback=progress_callback)
+    monkeypatch.setattr(candidate, "transfer_image", transfer)
+
+
 def ota_file(version=candidate.VERSION, manufacturer=0xFFF1):
     payload = b"test-gbl"
     header = struct.pack("<IHHHHHIH32sI", 0x0BEEF11E, 0x0100, 56, 0,
@@ -22,6 +29,7 @@ def ota_file(version=candidate.VERSION, manufacturer=0xFFF1):
 def allow(monkeypatch, data):
     monkeypatch.setattr(candidate, "SIZE", len(data))
     monkeypatch.setattr(candidate, "SHA256", hashlib.sha256(data).hexdigest())
+    monkeypatch.setattr(candidate, "CANDIDATES", {candidate.VERSION: {"source": candidate.SOURCE_VERSION, "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}})
 
 
 def test_candidate_identity_and_integrity(monkeypatch):
@@ -45,7 +53,7 @@ def setup_entry():
     device = SimpleNamespace(ieee="00:11:22:33:44:55:66:77", ota_in_progress=False,
                              find_cluster=lambda **kwargs: cluster,
                              update_firmware=AsyncMock(return_value=foundation.Status.SUCCESS))
-    runtime = SimpleNamespace(touch_quiet=set(), touch_received_at={"one": 0}, touch_status={},
+    runtime = SimpleNamespace(ota_active_entries=set(), touch_quiet=set(), touch_received_at={"one": 0}, touch_status={},
                               listen_switch=lambda entry: device)
 
     async def quiet(entry, enabled):
@@ -64,13 +72,13 @@ async def test_target_update_requires_quiet_and_preserves_guard():
 
     async def update(**kwargs):
         assert entry.runtime_data.touch_status["one"]["test_mode"]
-        assert kwargs["image"] == "image"
+        assert kwargs["image"].version == candidate.VERSION
         kwargs["progress_callback"](10, 20, 50)
         assert job["percent"] == 50
         return foundation.Status.SUCCESS
 
     device.update_firmware.side_effect = update
-    await candidate.install(entry, "image", job)
+    await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
     assert job["state"] == "complete" and job["percent"] == 100
     assert "one" in entry.runtime_data.touch_quiet
 
@@ -88,7 +96,7 @@ async def test_failed_upload_stays_quiet(failure):
     else:
         device.update_firmware.return_value = foundation.Status.FAILURE
     job = {}
-    await candidate.install(entry, "image", job)
+    await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
     assert job["state"] == "failed" and "error" in job
     assert "one" in entry.runtime_data.touch_quiet
     if failure != "ota_failed":
@@ -101,7 +109,7 @@ async def test_cancellation_does_not_activate():
     device.update_firmware.side_effect = asyncio.CancelledError()
     job = {}
     with pytest.raises(asyncio.CancelledError):
-        await candidate.install(entry, "image", job)
+        await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
     assert job["state"] == "interrupted" and "one" in entry.runtime_data.touch_quiet
 
 
@@ -116,9 +124,9 @@ def test_upload_is_admin_only_and_device_scoped(monkeypatch):
     for handler in (candidate.ws_install, candidate.ws_status):
         with pytest.raises(Unauthorized):
             handler(None, SimpleNamespace(user=SimpleNamespace(is_admin=False)), {})
-    entries = {key: SimpleNamespace(entry_id=key) for key in ("one", "two")}
+    entries = {key: SimpleNamespace(entry_id=key, runtime_data=SimpleNamespace(ota_active_entries=set())) for key in ("one", "two")}
     monkeypatch.setattr(panel, "panel_entry", lambda hass, key: entries[key])
-    monkeypatch.setattr(candidate, "decode_candidate", lambda data: "pinned-image")
+    monkeypatch.setattr(candidate, "decode_candidate", lambda data: SimpleNamespace(version=candidate.VERSION))
     tasks = []
 
     def create(coroutine, name):

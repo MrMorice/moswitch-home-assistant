@@ -26,6 +26,7 @@ from zigpy.zdo import types as zdo_t
 from . import protocol
 from .const import DOMAIN, ENDPOINT, IGNORE_LABEL, MAX_TARGETS
 from .led_diagnostics import ring_reply
+from .ota_probe import probe_reply
 from .rooms import device_area, ieee_for_device, room_entities, scene_cycle
 from .touch_trace import trace_reply
 
@@ -39,6 +40,9 @@ class GestureListener:
         self.last = None
 
     def cluster_command(self, tsn, command_id, args):
+        if command_id == 0x84:
+            probe_reply(self.runtime, self.ieee, args)
+            return
         if command_id == 0x83:
             ring_reply(self.runtime, self.ieee, args)
             return
@@ -74,6 +78,8 @@ class Runtime:
         self.touch_quiet = set()
         self.touch_status = {}
         self.touch_received_at = {}
+        self.ota_probe_waiters = {}
+        self.ota_active_entries = set()
         self.ring_waiters = {}
         self.ring_locks = {}
         self.touch_trace_waiters = {}
@@ -201,6 +207,8 @@ class Runtime:
         await protocol.baseline_touch(self.listen_switch(entry))
 
     async def query_touch(self, entry):
+        if entry.entry_id in self.ota_active_entries:
+            return
         await protocol.query_touch(self.listen_switch(entry))
 
     async def cancel_touch(self, entry):
