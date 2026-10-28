@@ -9,7 +9,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from zigpy.exceptions import ZigbeeException
 
-from .const import DOMAIN, TOUCH_FAILURES, TOUCH_FEEDBACK
+from .const import DOMAIN, TOUCH_ACTIVATION_LOCKED, TOUCH_FAILURES, TOUCH_FEEDBACK
 from .device_configuration import device_name
 
 COMMAND_ERRORS = (HomeAssistantError, ZigbeeException, TimeoutError, ValueError, KeyError, RuntimeError)
@@ -43,6 +43,8 @@ def learning_message(status):
         return f"**Haltetest läuft: noch etwa {seconds:.1f} Sekunden.**\n\nFinger liegen lassen. Der Schalter prüft, ob der Kontakt ohne Unterbrechung erkannt wird."
     if state == 13:
         return "**Haltetest bestanden – jetzt vollständig loslassen.**\n\nNach einer stabilen Ruhephase speichert der Schalter die neuen Werte. Schaltaktionen bleiben gesperrt."
+    if state == 3 and status.get("actions_locked"):
+        return "**Einlernen erfolgreich abgeschlossen und gespeichert.**\n\n" + TOUCH_ACTIVATION_LOCKED
     if state == 3:
         return ("**Einlernen erfolgreich abgeschlossen und gespeichert.**\n\n"
                 f"Ruhewert: {status.get('baseline_us', '–')} µs; "
@@ -188,6 +190,9 @@ class TouchWizard:
             if action == "retry":
                 return await self.async_step_touch_setup()
             if action == "activate":
+                if status.get("actions_locked"):
+                    self._touch_error = TOUCH_ACTIVATION_LOCKED
+                    return await self.async_step_touch_result()
                 try:
                     await self._touch_command(
                         self._touch_runtime().test_touch,
@@ -198,7 +203,7 @@ class TouchWizard:
                     errors["base"] = "touch_connection"
             if not errors:
                 return self.async_create_entry(title="", data=dict(self.config_entry.options))
-        choices = (["activate"] if success else []) + ["retry", "keep_test"]
+        choices = (["activate"] if success and not status.get("actions_locked") else []) + ["retry", "keep_test"]
         return self.async_show_form(
             step_id="touch_result", errors=errors,
             description_placeholders=self._touch_placeholders(status=self._touch_error or learning_message(status)),

@@ -198,13 +198,13 @@ class MoSwitchDeviceSettings extends HTMLElement {
     const preparing=this._busy&&this._pendingAction==='prepare'&&!active;
     q('mode').className = 'pill'+(!fresh||d.quiet?' quiet':'');
     q('mode').innerHTML = `<i></i>${!fresh?'Keine aktuellen Messdaten':d.quiet?'Stiller Testmodus':'Schaltbetrieb aktiv'}`;
-    q('touch-summary').textContent = !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
+    q('touch-summary').textContent = !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet && s.actions_locked ? 'Testfirmware · Schaltbetrieb dauerhaft gesperrt' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
     q('touch-home').hidden = showing;
     q('wizard').hidden = !showing;
     q('learn').disabled = this._busy;
     q('reconnect').hidden=fresh;
     q('reconnect').disabled=this._busy;
-    q('activate-home').hidden = !(d.quiet && s.calibrated && !active);
+    q('activate-home').hidden = !(d.quiet && s.calibrated && !s.actions_locked && !active);
     q('activate-home').textContent=state===3?'Zum Schalten freigeben':'Mit bisherigen Werten freigeben';
     const step = [1,2,9].includes(state)?0:state===7?1:[11,12,13].includes(state)?2:3;
     q('wizard').querySelectorAll('.steps li').forEach((li,index) => {li.className=index===step?'current':index<step?'done':''; if(index===step)li.setAttribute('aria-current','step');else li.removeAttribute('aria-current');});
@@ -216,6 +216,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
     else if (state===11) {title='Jetzt berühren und halten';instruction='Erst kurz loslassen. Dann die Fläche berühren und den Finger liegen lassen, bis hier „Jetzt loslassen“ erscheint.';}
     else if (state===12) {title='Weiter halten';instruction='Finger liegen lassen. Der Schalter prüft den durchgehenden Kontakt.';feedback=`Noch ${(s.hold_remaining_ms/1000).toFixed(1)} Sekunden`;}
     else if (state===13) {title='Jetzt loslassen';instruction='Die Fläche vollständig freigeben. Anschließend speichert der Schalter die ermittelten Werte.';}
+    else if (state===3 && s.actions_locked) {title='Touchfläche erfolgreich eingelernt';instruction='Die Kalibrierung ist gespeichert. Diese Testfirmware sperrt den Schaltbetrieb dauerhaft.';feedback='Eine Firmware mit freigebbarem Schaltbetrieb ist erforderlich.';}
     else if (state===3) {title='Touchfläche erfolgreich eingelernt';instruction='Alle zehn Tipps und der Haltetest sind bestätigt. Die Werte sind gespeichert.';feedback=d.quiet?'Du entscheidest, wann der Schalter wieder Aktionen auslösen darf.':'Der Schalter ist zum Schalten freigegeben.';}
     else {title=state===8?'Einlernen abgebrochen':'Einlernen nicht abgeschlossen';instruction=(d.message||'Bitte Verbindung und Messdaten prüfen.').replace(/\*\*/g,'');feedback=(instruction.includes('Die bisherigen Werte bleiben erhalten.')?'':'Die bisherigen Werte bleiben erhalten. ')+'Schaltaktionen bleiben im stillen Modus gesperrt.';}
     if(preparing){title='Einlernen wird vorbereitet …';instruction='Warte auf die Bestätigung vom Schalter.';feedback='';}
@@ -227,7 +228,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
     q('count').innerHTML=`${Number(s.learning_taps||0)} <small>/ 10</small>`;
     q('orb').className='orb'+(state===7&&!s.pressed?' pulse':'')+(s.pressed?' touch':'');
     q('baseline').hidden=state!==9;
-    q('activate').hidden=preparing||!(s.calibrated&&d.quiet&&!active);
+    q('activate').hidden=preparing||!(s.calibrated&&!s.actions_locked&&d.quiet&&!active);
     q('activate').textContent=state===3?'Zum Schalten freigeben':'Mit bisherigen Werten freigeben';
     q('keep').hidden=preparing||state!==3;
     q('retry').hidden=active||state===3;
