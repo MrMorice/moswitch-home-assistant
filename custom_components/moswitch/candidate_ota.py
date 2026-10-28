@@ -1,7 +1,7 @@
 """Admin-only, device-scoped installation of pinned quiet test images.
 
 No provider registration, filesystem writes, remote downloads or global OTA index.
-The allowlist contains only the locally built 0.1.53–0.1.56 test candidates; all start quiet.
+The allowlist contains only the locally built 0.1.53–0.1.58 test candidates;57+ verify saved profiles at boot.
 """
 
 import asyncio
@@ -25,12 +25,14 @@ from .ota_transport import PROFILES, transfer_image
 
 _LOGGER = logging.getLogger(__name__)
 DATA = "moswitch_candidate_ota"
-VERSION = 0x00010038
-SOURCE_VERSION = 0x00010037
-SHA256 = "6d026566c52b55b4ef2aa475bf30421198d268ccf94ae682f822cba72695fdb9"
-SIZE = 367234
+VERSION = 0x0001003A
+SOURCE_VERSION = 0x00010039
+SHA256 = "059d0ace1234e57deeab3eaa0fc5bb324f19254c9b5e601a72a484afb58c2dbb"
+SIZE = 367970
 CANDIDATES = {
     VERSION: {"source": SOURCE_VERSION, "sha256": SHA256, "size": SIZE},
+    0x00010039: {"source": 0x00010038, "sha256": "9ad75052a68680525be2a56d4afcacd104e91ffd7c7b48396f3bf6bdb83921e5", "size": 367970},
+    0x00010038: {"source": 0x00010037, "sha256": "6d026566c52b55b4ef2aa475bf30421198d268ccf94ae682f822cba72695fdb9", "size": 367234},
     0x00010037: {"source": 0x00010036, "sha256": "f0df586721a521fee35ce361146f1dd3ec214992b39811f277e703ff899922a3", "size": 367202},
     0x00010035: {"source": 0x00010034, "sha256": "0fa9cb9eef6fe90b2d2b23768a5b5b5d46a9888904fb6c07e2d2de9d31667bee", "size": 367202},
     0x00010036: {"source": 0x00010035, "sha256": "16c1c87e79de01970261c64e668bd7aabfd8e4d24476d5eca85e7cbcf6de0913", "size": 367202},
@@ -48,7 +50,7 @@ def decode_candidate(encoded):
     selected = next(((version, spec) for version, spec in CANDIDATES.items()
                      if len(data) == spec["size"] and digest == spec["sha256"]), None)
     if selected is None:
-        raise ValueError("Nur die festgelegten Testbuilds 0.1.53 bis 0.1.56 sind zugelassen")
+        raise ValueError("Nur die festgelegten Testbuilds 0.1.53 bis 0.1.58 sind zugelassen")
     target, spec = selected
     image, remaining = parse_ota_image(data)
     header = image.header
@@ -108,9 +110,20 @@ async def install(entry, image, job, profile="large_mac"):
         _LOGGER.warning("MoSwitch candidate OTA failed for %s: %s", entry.entry_id, err)
     finally:
         job["finished_at"] = time.time()
-        # Never release the HA action guard after a test upload or a failed upload.
+        # Keep blocked until a fresh device report confirms its post-update mode.
         runtime.touch_quiet.add(entry.entry_id)
         runtime.ota_active_entries.discard(entry.entry_id)
+        if job.get("state") == "complete" and image.version >= 0x00010039:
+            before = runtime.touch_received_at.get(entry.entry_id, 0)
+            try:
+                await runtime.query_touch(entry)
+                async with asyncio.timeout(15):
+                    while runtime.touch_received_at.get(entry.entry_id, 0) <= before:
+                        await asyncio.sleep(0.1)
+                job["startup_status_confirmed"] = True
+            except Exception as err:
+                job["startup_status_confirmed"] = False
+                job["startup_query_error"] = type(err).__name__
 
 
 def register(hass):

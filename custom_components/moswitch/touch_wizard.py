@@ -18,6 +18,11 @@ COMMAND_ERRORS = (HomeAssistantError, ZigbeeException, TimeoutError, ValueError,
 def learning_message(status):
     """Instructions for the current device-confirmed stage."""
     state = status.get("state")
+    if state == 10 and status.get("startup_check") in (1, 3, 4):
+        return ("Startprüfung: Fläche vollständig freigeben. Der Ruhewert wird mit der gespeicherten "
+                f"Baseline ({status.get('baseline_us', '–')} µs) verglichen; aktuell "
+                f"{status.get('startup_observed_us', '–')} µs. "
+                "Bei passendem Ruhesignal beginnt der Schaltbetrieb automatisch. Die Kalibrierung bleibt unverändert.")
     if state in (1, 2):
         return "Fläche unberührt lassen. Die Ruhemessung dauert insgesamt etwa vier Sekunden."
     if state == 7:
