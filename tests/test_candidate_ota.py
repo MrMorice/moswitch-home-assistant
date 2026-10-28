@@ -62,6 +62,12 @@ def setup_entry():
         runtime.touch_received_at[entry.entry_id] = time.monotonic()
         runtime.touch_status[entry.entry_id] = {"test_mode": True, "state": 10}
 
+    async def query(entry):
+        runtime.touch_received_at[entry.entry_id] = time.monotonic()
+        runtime.touch_status[entry.entry_id] = {"test_mode": False, "state": 3}
+        runtime.touch_quiet.discard(entry.entry_id)  # Same as a real normal-mode report.
+
+    runtime.query_touch = AsyncMock(side_effect=query)
     runtime.test_touch = AsyncMock(side_effect=quiet)
     return SimpleNamespace(entry_id="one", runtime_data=runtime), device, cluster
 
@@ -81,7 +87,8 @@ async def test_target_update_requires_quiet_and_preserves_guard():
     device.update_firmware.side_effect = update
     await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
     assert job["state"] == "complete" and job["percent"] == 100
-    assert "one" in entry.runtime_data.touch_quiet
+    assert "one" not in entry.runtime_data.touch_quiet
+    assert job["startup_status_confirmed"]
 
 
 @pytest.mark.asyncio
@@ -145,3 +152,13 @@ def test_upload_is_admin_only_and_device_scoped(monkeypatch):
     assert conn.send_error.call_args.args[1] == "candidate_rejected"
     inspect.unwrap(candidate.ws_status)(hass, conn, {"id": 3, "entry_id": "two"})
     assert conn.send_result.call_args.args == (3, {"state": "idle"})
+
+
+@pytest.mark.asyncio
+async def test_post_update_query_failure_keeps_action_guard():
+    entry, device, _ = setup_entry()
+    entry.runtime_data.query_touch.side_effect = TimeoutError("no fresh startup report")
+    job = {}
+    await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
+    assert job["state"] == "complete" and not job["startup_status_confirmed"]
+    assert "one" in entry.runtime_data.touch_quiet

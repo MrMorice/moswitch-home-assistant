@@ -11,7 +11,7 @@ from zigpy import types as t
 from .const import ENDPOINT, MANUFACTURER
 from .touch_wizard import COMMAND_ERRORS
 
-OPS = {"disable": 0, "enable": 1, "test": 2, "confirm_supply": 3,
+OPS = {"update_preview": 2, "disable": 0, "enable": 1, "test": 2, "confirm_supply": 3,
        "forget_supply": 4, "brightness": 5, "status": 6, "wire_check": 7,
        "boot_status": 8, "pad_check": 9, "journal_test": 10}
 
@@ -174,11 +174,11 @@ async def ring_action(entry, action, value=None):
                 future.cancel()
 
     async with lock:
-        argument = 0xA5 if action == "confirm_supply" else value or 0 if action in ("brightness", "wire_check") else 0
+        argument = 1 if action == "update_preview" else 0xA5 if action == "confirm_supply" else value or 0 if action in ("brightness", "wire_check") else 0
         status = await command(OPS[action], argument)
         if action == "enable" and (not status["enabled"] or not status["started"] or status["error"]):
             raise ValueError("LED-Treiber wurde nicht gestartet")
-        if action == "test" and (not status["test_active"] or not status["enabled"] or not status["started"] or status["error"]):
+        if action in ("test", "update_preview") and (not status["test_active"] or not status["enabled"] or not status["started"] or status["error"]):
             raise ValueError("LED-Test wurde nicht gestartet")
         if action == "wire_check" and not status.get("wire_probe", {}).get("executed"):
             raise ValueError("LED-Leitungsprüfung wurde nicht ausgeführt")

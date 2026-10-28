@@ -174,7 +174,7 @@ async def cancel_touch(device):
 
 
 def touch_status(payload):
-    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24, 56, 68, 76):
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (20, 24, 56, 68, 76, 84):
         return None
     version, state, flags, progress, raw, baseline, press, release = struct.unpack(
         "<BBBBIIII", payload[:20]
@@ -184,8 +184,8 @@ def touch_status(payload):
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version in (2, 3, 4, 5, 6, 7, 8):
-        if len(payload) != (76 if version >= 7 else 24 if version == 2 else 68 if version >= 5 else 56) or state > (13 if version >= 7 else 10 if version >= 5 else 8) or progress > 10:
+    elif version in (2, 3, 4, 5, 6, 7, 8, 9):
+        if len(payload) != (84 if version == 9 else 76 if version >= 7 else 24 if version == 2 else 68 if version >= 5 else 56) or state > (13 if version >= 7 else 10 if version >= 5 else 8) or progress > 10:
             return None
     else:
         return None
@@ -241,4 +241,9 @@ def touch_status(payload):
         if flags & 32 and not flags & 4:
             return None
         data["actions_locked"] = bool(flags & 32)
+    if version == 9:
+        check, reserved, samples, observed = struct.unpack("<BBHI", payload[76:84])
+        if check > 5 or reserved or observed >= 2000:
+            return None
+        data.update(startup_check=check, startup_samples=samples, startup_observed_us=observed)
     return data

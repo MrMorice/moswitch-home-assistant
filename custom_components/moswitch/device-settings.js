@@ -198,7 +198,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
     const preparing=this._busy&&this._pendingAction==='prepare'&&!active;
     q('mode').className = 'pill'+(!fresh||d.quiet?' quiet':'');
     q('mode').innerHTML = `<i></i>${!fresh?'Keine aktuellen Messdaten':d.quiet?'Stiller Testmodus':'Schaltbetrieb aktiv'}`;
-    q('touch-summary').textContent = !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet && s.actions_locked ? 'Testfirmware · Schaltbetrieb dauerhaft gesperrt' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
+    q('touch-summary').textContent = fresh && [1,3,4].includes(s.startup_check) ? 'Startprüfung · Fläche freigeben; gespeicherte Kalibrierung bleibt erhalten' : !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet && s.actions_locked ? 'Testfirmware · Schaltbetrieb dauerhaft gesperrt' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
     q('touch-home').hidden = showing;
     q('wizard').hidden = !showing;
     q('learn').disabled = this._busy;

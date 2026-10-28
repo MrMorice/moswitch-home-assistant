@@ -1308,3 +1308,24 @@ async def test_options_flow_does_not_offer_activation_for_locked_firmware(hass):
     assert "dauerhaft" in result["description_placeholders"]["status"]
     await flow.async_step_touch_result({"action":"activate"})
     runtime.test_touch.assert_not_awaited()
+
+
+def test_v9_boot_diagnostics_do_not_change_calibration():
+    import struct
+
+    from custom_components.moswitch.touch_wizard import learning_message
+
+    for check in range(6):
+        packet = bytearray(v8_packet())
+        packet[0] = 9
+        packet[1] = 10
+        packet.extend(struct.pack("<BBHI", check, 0, 130, 20))
+        status = protocol.touch_status(packet)
+        assert status["startup_check"] == check and status["startup_observed_us"] == 20
+        if check in (1,3,4):
+            assert "Startprüfung" in learning_message(status)
+    for check, reserved, value in ((6,0,20),(1,1,20),(1,0,2000)):
+        packet = bytearray(v8_packet())
+        packet[0] = 9
+        packet.extend(struct.pack("<BBHI",check,reserved,130,value))
+        assert protocol.touch_status(packet) is None

@@ -231,3 +231,16 @@ async def test_commands_supply_and_disable_confirmation():
     for value in (-1, 65, True, None):
         with pytest.raises(ValueError):
             await ring_action(entry, "brightness", value)
+
+
+@pytest.mark.asyncio
+async def test_update_preview_uses_test_submode_and_device_confirmation():
+    cluster = SimpleNamespace()
+    device = SimpleNamespace(ieee="preview", endpoints={ENDPOINT: SimpleNamespace(in_clusters={0: cluster})})
+    runtime = SimpleNamespace(ring_waiters={}, ring_locks={}, listen_switch=lambda entry: device)
+    entry = SimpleNamespace(entry_id="preview", runtime_data=runtime)
+    async def request(*args, **kwargs):
+        assert args[3:5] == (2, 1)
+        ring_reply(runtime, "preview", packet(nonce=args[5], operation=2, flags=15))
+    cluster.request = request
+    assert (await ring_action(entry, "update_preview"))["test_active"]

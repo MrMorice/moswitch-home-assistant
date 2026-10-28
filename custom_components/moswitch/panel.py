@@ -115,7 +115,7 @@ async def async_register(hass):
     frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.17")
     await panel_custom.async_register_panel(
         hass, frontend_url_path="moswitch", webcomponent_name="moswitch-device-settings",
-        module_url="/moswitch_static/device-settings.js?v=0.1.33", require_admin=True,
+        module_url="/moswitch_static/device-settings.js?v=0.1.34", require_admin=True,
     )
     register_candidate_ota(hass)
     websocket_api.async_register_command(hass, ws_trace)
