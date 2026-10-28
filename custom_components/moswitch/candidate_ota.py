@@ -1,7 +1,7 @@
 """Admin-only, device-scoped installation of two pinned quiet test images.
 
 No provider registration, filesystem writes, remote downloads or global OTA index.
-The allowlist contains only the locally built 0.1.52/0.1.53 quiet candidates.
+The allowlist contains only the locally built 0.1.53/0.1.54 quiet candidates.
 """
 
 import asyncio
@@ -25,13 +25,13 @@ from .ota_transport import PROFILES, transfer_image
 
 _LOGGER = logging.getLogger(__name__)
 DATA = "moswitch_candidate_ota"
-VERSION = 0x00010034
-SOURCE_VERSION = 0x00010033
-SHA256 = "952b98c4d8c22b12ee3a642915f3be4add107e7baeb5f5654acf1bbca81caa32"
+VERSION = 0x00010035
+SOURCE_VERSION = 0x00010034
+SHA256 = "0fa9cb9eef6fe90b2d2b23768a5b5b5d46a9888904fb6c07e2d2de9d31667bee"
 SIZE = 367202
 CANDIDATES = {
     VERSION: {"source": SOURCE_VERSION, "sha256": SHA256, "size": SIZE},
-    0x00010035: {"source": VERSION, "sha256": "dfa2de3cc39f1cefdf19c1f874facaefdcda733c74cf9787937cd4f360a5e600", "size": 367202},
+    0x00010036: {"source": VERSION, "sha256": "16c1c87e79de01970261c64e668bd7aabfd8e4d24476d5eca85e7cbcf6de0913", "size": 367202},
 }
 
 
@@ -46,7 +46,7 @@ def decode_candidate(encoded):
     selected = next(((version, spec) for version, spec in CANDIDATES.items()
                      if len(data) == spec["size"] and digest == spec["sha256"]), None)
     if selected is None:
-        raise ValueError("Nur die festgelegten stillen Builds 0.1.52 und 0.1.53 sind zugelassen")
+        raise ValueError("Nur die festgelegten stillen Builds 0.1.53 und 0.1.54 sind zugelassen")
     target, spec = selected
     image, remaining = parse_ota_image(data)
     header = image.header

@@ -17,6 +17,7 @@ def legacy_transfer_mock(monkeypatch):
     async def transfer(device, image, progress_callback, job, profile):
         return await device.update_firmware(image=image, progress_callback=progress_callback)
     monkeypatch.setattr(candidate, "transfer_image", transfer)
+    monkeypatch.setattr(candidate, "control", AsyncMock(return_value={"result": 0}))
 
 
 def ota_file(version=candidate.VERSION, manufacturer=0xFFF1):
