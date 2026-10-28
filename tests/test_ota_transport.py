@@ -126,3 +126,29 @@ async def test_manager_exit_cancels_and_drains_active_page():
     await manager._image_page_req(SimpleNamespace(tsn=1), command)
     assert cluster.request.await_count == 1
     manager._upgrade_end_future.cancel()
+
+
+@pytest.mark.asyncio
+async def test_final_ram_result_preserves_actual_sender_block(monkeypatch):
+    from custom_components.moswitch import ota_probe
+    device, cluster = fake_device()
+    device.ieee = 'one'
+    device.ota_in_progress = False
+    device.endpoints = {10: SimpleNamespace(in_clusters={0: cluster})}
+    runtime = SimpleNamespace(ota_active_entries=set(), touch_status={'one': {'test_mode': True, 'state': 10}},
+                              listen_switch=lambda entry: device)
+    entry = SimpleNamespace(entry_id='one', runtime_data=runtime)
+    async def control(entry, op, **kwargs):
+        if op == 2:
+            return {'result': 0}
+        return {'result': 0, 'block': 48, 'spacing': 5, 'received': 1024,
+                'hash': kwargs['expected'], 'ignored': 0, 'active': False}
+    monkeypatch.setattr(ota_probe, 'control', control)
+    monkeypatch.setattr(ota_probe.asyncio, 'sleep', AsyncMock())
+    job = {}
+    await ota_probe.benchmark(entry, job, 'large_mac', 1024)
+    assert job['state'] == 'complete' and job['verified']
+    assert job['block'] == 64 and job['device_profile_block'] == 48
+    assert job['spacing_ms'] == 0 and job['device_profile_spacing_ms'] == 5
+    assert cluster.request.await_count == 16
+    assert not runtime.ota_active_entries
