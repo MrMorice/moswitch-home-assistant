@@ -115,7 +115,7 @@ async def async_register(hass):
     frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.17")
     await panel_custom.async_register_panel(
         hass, frontend_url_path="moswitch", webcomponent_name="moswitch-device-settings",
-        module_url="/moswitch_static/device-settings.js?v=0.1.17", require_admin=True,
+        module_url="/moswitch_static/device-settings.js?v=0.1.33", require_admin=True,
     )
     register_candidate_ota(hass)
     websocket_api.async_register_command(hass, ws_trace)
@@ -213,6 +213,8 @@ async def ws_action(hass, connection, msg):
         elif command == "parameter":
             await runtime.set_touch_parameter(entry, msg["key"], msg["value"])
         elif command == "activate":
+            await confirmed_touch_command(hass, entry, runtime.query_touch, lambda s: True)
+            status = runtime.touch_status[entry.entry_id]
             if status.get("state") in ACTIVE_STATES or not status.get("calibrated"):
                 raise ValueError("Bitte das Einlernen zuerst erfolgreich abschließen.")
             await confirmed_touch_command(hass, entry, runtime.test_touch,

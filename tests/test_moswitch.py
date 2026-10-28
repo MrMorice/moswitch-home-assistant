@@ -8,6 +8,7 @@ import pytest
 import pytest_asyncio
 from homeassistant.config_entries import ConfigEntries, ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -1104,6 +1105,9 @@ async def test_panel_activation_requires_explicit_command_and_fresh_normal_repor
         assert not enabled
         runtime.touch_status[config.entry_id] = {'state': 3, 'calibrated': True, 'test_mode': False}
         runtime.touch_received_at[config.entry_id] = time.monotonic()
+    async def query(config):
+        runtime.touch_received_at[config.entry_id] = time.monotonic()
+    runtime.query_touch = AsyncMock(side_effect=query)
     runtime.test_touch = AsyncMock(side_effect=normal)
     await inspect.unwrap(ws_action)(hass, conn, {
         'id': 1, 'entry_id': config.entry_id, 'session': 's', 'action': 'activate'})
@@ -1219,3 +1223,88 @@ def test_hold_retry_keeps_taps_and_failure_explanation_is_not_duplicated():
     assert "gültige Messungen" in text and "noch nicht gespeichert" in text
     failed = learning_message({"state": 4, "failure_reason": 7})
     assert failed == "Einlernen beendet: Haltetest unterbrochen. Die bisherigen Werte bleiben erhalten."
+
+
+def v8_packet(*, locked=False, normal=False):
+    packet = bytearray(v7_packet(state=3, contacts=10, progress=10))
+    packet[0] = 8
+    packet[2] = 17 if normal else 29 | (32 if locked else 0)
+    return bytes(packet)
+
+
+def test_v8_reports_permanent_action_lock_and_rejects_inconsistent_flags():
+    from custom_components.moswitch.touch_wizard import learning_message
+
+    for locked in (False, True):
+        status = protocol.touch_status(v8_packet(locked=locked))
+        assert status["protocol_version"] == 8 and status["actions_locked"] is locked
+        assert status["calibrated"] and status["test_mode"]
+        assert ("dauerhaft" in learning_message(status)) is locked
+    assert not protocol.touch_status(v8_packet(normal=True))["test_mode"]
+    bad = bytearray(v8_packet(normal=True))
+    bad[2] |= 32
+    assert protocol.touch_status(bad) is None
+    bad = bytearray(v8_packet())
+    bad[2] |= 64
+    assert protocol.touch_status(bad) is None
+    bad = bytearray(v8_packet())
+    bad[0] = 7
+    bad[2] |= 32
+    assert protocol.touch_status(bad) is None  # Legacy reserved flags stay strict.
+
+
+@pytest.mark.asyncio
+async def test_runtime_does_not_send_activation_to_permanently_locked_firmware(hass, monkeypatch):
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.touch_status[config.entry_id] = protocol.touch_status(v8_packet(locked=True))
+    runtime.listen_switch = lambda entry: object()
+    normal = AsyncMock()
+    monkeypatch.setattr(protocol, "normal_touch", normal)
+    with pytest.raises(HomeAssistantError, match="dauerhaft"):
+        await runtime.test_touch(config, False)
+    normal.assert_not_awaited()
+    assert config.entry_id in runtime.touch_quiet
+
+
+@pytest.mark.asyncio
+async def test_panel_activation_checks_fresh_lock_state_before_command(hass, monkeypatch):
+    import inspect
+    import time
+    from unittest.mock import Mock
+
+    from custom_components.moswitch.panel import PANEL_DATA, ws_action
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.touch_status[config.entry_id] = protocol.touch_status(v8_packet(locked=False))
+    async def query(entry):
+        runtime.touch_status[entry.entry_id] = protocol.touch_status(v8_packet(locked=True))
+        runtime.touch_received_at[entry.entry_id] = time.monotonic()
+    runtime.query_touch = AsyncMock(side_effect=query)
+    normal = AsyncMock()
+    monkeypatch.setattr(protocol, "normal_touch", normal)
+    conn = SimpleNamespace(send_result=Mock(), send_error=Mock())
+    hass.data[PANEL_DATA]["sessions"]["s"] = {"entry":config.entry_id,"connection":conn,"owns":False}
+    await inspect.unwrap(ws_action)(hass,conn,{"id":1,"entry_id":config.entry_id,"session":"s","action":"activate"})
+    normal.assert_not_awaited()
+    assert "dauerhaft" in conn.send_error.call_args.args[-1]
+
+
+@pytest.mark.asyncio
+async def test_options_flow_does_not_offer_activation_for_locked_firmware(hass):
+    from custom_components.moswitch.config_flow import MoSwitchOptionsFlow
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.touch_status[config.entry_id] = protocol.touch_status(v8_packet(locked=True))
+    flow = MoSwitchOptionsFlow()
+    flow.hass, flow.handler = hass, config.entry_id
+    flow._touch_error = None
+    runtime.test_touch = AsyncMock()
+    result = await flow.async_step_touch_result()
+    choices = next(iter(result["data_schema"].schema.values())).config["options"]
+    assert choices == ["retry", "keep_test"]
+    assert "dauerhaft" in result["description_placeholders"]["status"]
+    await flow.async_step_touch_result({"action":"activate"})
+    runtime.test_touch.assert_not_awaited()

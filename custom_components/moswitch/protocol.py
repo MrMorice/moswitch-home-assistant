@@ -179,17 +179,17 @@ def touch_status(payload):
     version, state, flags, progress, raw, baseline, press, release = struct.unpack(
         "<BBBBIIII", payload[:20]
     )
-    if flags & ~(31 if version >= 5 else 3) or (flags & 8 and not flags & 4):
+    if flags & ~(63 if version >= 8 else 31 if version >= 5 else 3) or (flags & 8 and not flags & 4):
         return None
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version in (2, 3, 4, 5, 6, 7):
-        if len(payload) != (76 if version == 7 else 24 if version == 2 else 68 if version >= 5 else 56) or state > (13 if version == 7 else 10 if version >= 5 else 8) or progress > 10:
+    elif version in (2, 3, 4, 5, 6, 7, 8):
+        if len(payload) != (76 if version >= 7 else 24 if version == 2 else 68 if version >= 5 else 56) or state > (13 if version >= 7 else 10 if version >= 5 else 8) or progress > 10:
             return None
     else:
         return None
-    if version >= 3 and (payload[24] > (11 if version == 7 else 8) or payload[25] > (7 if version == 7 else 6) or (payload[26:28] not in (b"\1\1", b"\2\1") if version == 7 else payload[26:28] != b"\0\0")):
+    if version >= 3 and (payload[24] > (11 if version >= 7 else 8) or payload[25] > (7 if version >= 7 else 6) or (payload[26:28] not in (b"\1\1", b"\2\1") if version >= 7 else payload[26:28] != b"\0\0")):
         return None
     data = {
         "state": state,
@@ -228,7 +228,7 @@ def touch_status(payload):
                     tuning_writable=True)
     if version >= 6:
         data["learning_remaining_s"] = reserved
-    if version == 7:
+    if version >= 7:
         noise, hold_ms, faults = struct.unpack("<IHH", payload[68:76])
         if hold_ms > 2000:
             return None
@@ -237,4 +237,8 @@ def touch_status(payload):
         data.update(measurement_backend="acmp", profile_version=1, idle_noise_us=None if noise == 0xFFFFFFFF else noise,
                     hold_remaining_ms=hold_ms, capture_faults=faults, comparator_reference=32,
                     comparator_hysteresis=3, frontend_active=payload[26] == 1, hold_verification_required=True)
+    if version >= 8:
+        if flags & 32 and not flags & 4:
+            return None
+        data["actions_locked"] = bool(flags & 32)
     return data

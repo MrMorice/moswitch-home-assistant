@@ -1,7 +1,7 @@
 """Admin-only, device-scoped installation of pinned quiet test images.
 
 No provider registration, filesystem writes, remote downloads or global OTA index.
-The allowlist contains only the locally built 0.1.53/0.1.54/0.1.55 quiet candidates.
+The allowlist contains only the locally built 0.1.53–0.1.56 test candidates; all start quiet.
 """
 
 import asyncio
@@ -25,12 +25,13 @@ from .ota_transport import PROFILES, transfer_image
 
 _LOGGER = logging.getLogger(__name__)
 DATA = "moswitch_candidate_ota"
-VERSION = 0x00010037
-SOURCE_VERSION = 0x00010036
-SHA256 = "f0df586721a521fee35ce361146f1dd3ec214992b39811f277e703ff899922a3"
-SIZE = 367202
+VERSION = 0x00010038
+SOURCE_VERSION = 0x00010037
+SHA256 = "6d026566c52b55b4ef2aa475bf30421198d268ccf94ae682f822cba72695fdb9"
+SIZE = 367234
 CANDIDATES = {
     VERSION: {"source": SOURCE_VERSION, "sha256": SHA256, "size": SIZE},
+    0x00010037: {"source": 0x00010036, "sha256": "f0df586721a521fee35ce361146f1dd3ec214992b39811f277e703ff899922a3", "size": 367202},
     0x00010035: {"source": 0x00010034, "sha256": "0fa9cb9eef6fe90b2d2b23768a5b5b5d46a9888904fb6c07e2d2de9d31667bee", "size": 367202},
     0x00010036: {"source": 0x00010035, "sha256": "16c1c87e79de01970261c64e668bd7aabfd8e4d24476d5eca85e7cbcf6de0913", "size": 367202},
 }
@@ -47,7 +48,7 @@ def decode_candidate(encoded):
     selected = next(((version, spec) for version, spec in CANDIDATES.items()
                      if len(data) == spec["size"] and digest == spec["sha256"]), None)
     if selected is None:
-        raise ValueError("Nur die festgelegten stillen Builds 0.1.53, 0.1.54 und 0.1.55 sind zugelassen")
+        raise ValueError("Nur die festgelegten Testbuilds 0.1.53 bis 0.1.56 sind zugelassen")
     target, spec = selected
     image, remaining = parse_ota_image(data)
     header = image.header

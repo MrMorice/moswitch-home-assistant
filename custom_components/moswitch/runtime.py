@@ -24,7 +24,7 @@ from zigpy.zcl import foundation
 from zigpy.zdo import types as zdo_t
 
 from . import protocol
-from .const import DOMAIN, ENDPOINT, IGNORE_LABEL, MAX_TARGETS
+from .const import DOMAIN, ENDPOINT, IGNORE_LABEL, MAX_TARGETS, TOUCH_ACTIVATION_LOCKED
 from .led_diagnostics import ring_reply
 from .ota_probe import probe_reply
 from .rooms import device_area, ieee_for_device, room_entities, scene_cycle
@@ -199,6 +199,8 @@ class Runtime:
         # Keep blocked on command loss; only a subsequent normal-mode report
         # clears the guard. Firmware also guards its direct Zigbee actions.
         self.touch_quiet.add(entry.entry_id)
+        if not enabled and self.touch_status.get(entry.entry_id, {}).get("actions_locked"):
+            raise HomeAssistantError(TOUCH_ACTIVATION_LOCKED)
         method = protocol.diagnose_touch if enabled else protocol.normal_touch
         await method(self.listen_switch(entry))
 
