@@ -79,6 +79,49 @@ def test_capture_resource_refusal_is_specific_and_not_a_signal_failure():
     assert p["output_activity_observed"] is None and not p["coverage_sufficient"]
 
 
+def boot_packet(operation=8, nonce=1, cause=8, previous=203, current=0, pad=0, journal_flags=1):
+    base = struct.pack("<BBBBIIHBB", 4, 0, 32, 0, 0, 0, nonce, operation, 0)
+    return base + struct.pack("<10I", cause, 2, previous, 0, 1, current, 1000, pad, 400, journal_flags)
+
+
+def test_boot_reset_cause_and_breadcrumb_do_not_claim_a_pad_test():
+    p = parse_ring(boot_packet())["boot_diagnostics"]
+    assert p["reset_causes"] == ["watchdog0"]
+    assert p["previous_stage_name"] == "before_timer_reset" and p["retained_journal_valid"]
+    assert p["boot_count_ram"] == 2 and p["previous_boot"] == 1
+    assert not p["pad_check_completed"] and p["pad_high_ok"] is None
+    pad = 15 | (4 << 8) | (16 << 16) | (16 << 24)
+    p = parse_ring(boot_packet(operation=9, cause=128, current=900, pad=pad))["boot_diagnostics"]
+    assert p["reset_causes"] == ["dvdd_brownout"] and p["pad_high_ok"] is True
+    assert p["pad_low_before_ok"] and p["pad_low_after_ok"]
+    assert p["pad_gpio_mode"] == 4 and p["pad_route_after"] == 16
+    p = parse_ring(boot_packet(operation=9, pad=pad & ~2))["boot_diagnostics"]
+    assert p["pad_check_completed"] and p["pad_high_ok"] is False
+    for bad in (boot_packet()[:-1], boot_packet(operation=7), boot_packet(journal_flags=2)):
+        assert parse_ring(bad) is None
+
+
+@pytest.mark.asyncio
+async def test_boot_pad_and_controlled_reboot_are_device_confirmed():
+    cluster = SimpleNamespace()
+    device = SimpleNamespace(ieee="one", endpoints={ENDPOINT: SimpleNamespace(in_clusters={0: cluster})})
+    runtime = SimpleNamespace(ring_waiters={}, ring_locks={}, listen_switch=lambda entry: device)
+    entry = SimpleNamespace(entry_id="one", runtime_data=runtime)
+
+    async def request(*args, **kwargs):
+        op = args[3]
+        assert args[4] == 0 and op in (8, 9, 10)
+        data = boot_packet(operation=op, nonce=args[5], current=950 if op == 10 else 900,
+                           pad=13 if op == 9 else 0)
+        ring_reply(runtime, "one", data)
+
+    cluster.request = request
+    assert (await ring_action(entry, "boot_status"))["boot_diagnostics"]["reset_cause"] == 8
+    # A completed measurement with HIGH stuck low is data, not an API failure.
+    assert (await ring_action(entry, "pad_check"))["boot_diagnostics"]["pad_high_ok"] is False
+    assert (await ring_action(entry, "journal_test"))["boot_diagnostics"]["current_stage"] == 950
+
+
 @pytest.mark.asyncio
 async def test_wire_transport_variant_is_explicit_and_device_confirmed():
     cluster = SimpleNamespace()
