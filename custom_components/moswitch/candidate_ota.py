@@ -62,7 +62,7 @@ def decode_candidate(encoded):
     return OtaImageWithMetadata(metadata=metadata, firmware=image)
 
 
-async def install(entry, image, job, profile="baseline"):
+async def install(entry, image, job, profile="large_mac"):
     runtime = entry.runtime_data
     runtime.touch_quiet.add(entry.entry_id)
     try:
@@ -121,7 +121,7 @@ def register(hass):
 
 @websocket_api.websocket_command({vol.Required("type"): "moswitch/firmware/install_test",
     vol.Required("entry_id"): str, vol.Required("image"): vol.All(str, vol.Length(max=500000)),
-    vol.Optional("profile", default="baseline"): vol.In(PROFILES)})
+    vol.Optional("profile", default="large_mac"): vol.In(PROFILES)})
 @websocket_api.require_admin
 @callback
 def ws_install(hass, connection, msg):
@@ -138,7 +138,7 @@ def ws_install(hass, connection, msg):
         job = {"state": "preparing", "version": image.version, "percent": 0, "started_at": time.time()}
         jobs[entry.entry_id] = job
         entry.runtime_data.ota_active_entries.add(entry.entry_id)
-        hass.async_create_background_task(install(entry, image, job, msg.get("profile", "baseline")), "MoSwitch candidate OTA")
+        hass.async_create_background_task(install(entry, image, job, msg.get("profile", "large_mac")), "MoSwitch candidate OTA")
     except ValueError as err:
         connection.send_error(msg["id"], "candidate_rejected", str(err))
         return

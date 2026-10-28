@@ -115,7 +115,9 @@ async def benchmark(entry, job, profile, size):
         started = False
         elapsed = time.monotonic() - start
         verified = not result["result"] and result["received"] == size and result["hash"] == fnv(payload)
-        job.update(result, verified=verified, state="complete" if verified else "failed",
+        snapshot = {key: value for key, value in result.items() if key not in ("block", "spacing")}
+        job.update(snapshot, device_profile_block=result["block"], device_profile_spacing_ms=result["spacing"],
+                   block=block, verified=verified, state="complete" if verified else "failed",
                    elapsed_s=round(elapsed, 3), received_Bps=round(result["received"] / elapsed, 1),
                    mean_delivery_ms=round(sum(delivery) / len(delivery), 2), max_delivery_ms=round(max(delivery), 2))
     except asyncio.CancelledError:
