@@ -12,7 +12,26 @@ from .const import ENDPOINT, MANUFACTURER
 from .touch_wizard import COMMAND_ERRORS
 
 OPS = {"disable": 0, "enable": 1, "test": 2, "confirm_supply": 3,
-       "forget_supply": 4, "brightness": 5, "status": 6, "wire_check": 7}
+       "forget_supply": 4, "brightness": 5, "status": 6, "wire_check": 7,
+       "boot_status": 8, "pad_check": 9, "journal_test": 10}
+
+PROBE_STAGES = {
+    0: "boot", 10: "probe_begin", 11: "transport_change_begin", 12: "transport_ready",
+    20: "capture_begin", 100: "capture_resources_begin", 101: "capture_clocks_enabled",
+    102: "capture_resources_checked", 103: "capture_dma_allocated", 104: "gpio_input_routed",
+    105: "prs_signal_connected", 106: "prs_consumer_connected", 200: "capture_arm_begin",
+    201: "before_dma_stop", 202: "before_timer_stop", 203: "before_timer_reset",
+    204: "before_timer_init", 205: "before_timer_cc_init", 206: "before_capture_dma_start",
+    207: "before_timer_start", 208: "capture_armed", 301: "before_selftest_gpio_high",
+    303: "before_selftest_gpio_low", 310: "before_selftest_finish", 311: "finish_before_timer_stop",
+    312: "before_dma_remaining_count", 313: "finish_before_dma_stop", 400: "before_frame_capture_arm",
+    401: "before_spi_send", 402: "spi_send_started", 403: "spi_wait_finished", 404: "before_decode",
+    500: "cleanup_begin", 501: "cleanup_before_dma_stop", 503: "cleanup_before_timer_stop",
+    504: "cleanup_before_timer_reset", 505: "cleanup_restore_routes", 506: "cleanup_restore_clocks",
+    600: "pad_check_begin", 601: "pad_route_detached", 602: "pad_low_before_read",
+    603: "before_pad_high", 604: "pad_high_read", 606: "pad_low_after_read",
+    900: "probe_completed", 901: "probe_refused_or_cancelled", 950: "controlled_reboot_armed",
+}
 
 
 class RingCommand(t.Struct):
@@ -26,7 +45,8 @@ def parse_ring(payload):
         return None
     version, flags, brightness, error, baud, frames, nonce, operation, result = struct.unpack("<BBBBIIHBB", payload[:16])
     if not ((version == 1 and len(payload) == 16 and operation <= 6)
-            or (version in (2, 3) and len(payload) == 56 and operation == 7)):
+            or (version in (2, 3) and len(payload) == 56 and operation == 7)
+            or (version == 4 and len(payload) == 56 and operation in (8, 9, 10))):
         return None
     if flags > 15 or brightness > 64 or result > 1:
         return None
@@ -86,6 +106,31 @@ def parse_ring(payload):
             "coverage_sufficient": coverage,
             "output_activity_observed": True if edges >= 2 else False if coverage else None,
         }
+    if version == 4:
+        cause, boots, previous, variant, previous_boot, current, uptime, pad, stack, journal_flags = struct.unpack("<10I", payload[16:])
+        if journal_flags > 1:
+            return None
+        completed = bool(pad & 8)
+        status["boot_diagnostics"] = {
+            "reset_cause": cause,
+            "reset_causes": [name for bit, name in (
+                (1, "power_on"), (2, "reset_pin"), (4, "em4_wakeup"), (8, "watchdog0"),
+                (16, "watchdog1"), (32, "core_lockup"), (64, "software_system_reset"),
+                (128, "dvdd_brownout"), (256, "dvdd_low_energy_brownout"),
+                (512, "decouple_brownout"), (1024, "avdd_brownout")) if cause & bit],
+            "unknown_reset_bits": cause & ~2047,
+            "boot_count_ram": boots, "retained_journal_valid": bool(journal_flags & 1),
+            "previous_stage": previous, "previous_stage_name": PROBE_STAGES.get(previous, "unknown"),
+            "previous_variant": variant, "previous_boot": previous_boot,
+            "current_stage": current, "current_stage_name": PROBE_STAGES.get(current, "unknown"),
+            "uptime_ms": uptime, "stack_high_water_words": stack,
+            "pad_check_completed": completed,
+            "pad_low_before_ok": bool(pad & 1) if completed else None,
+            "pad_high_ok": bool(pad & 2) if completed else None,
+            "pad_low_after_ok": bool(pad & 4) if completed else None,
+            "pad_gpio_mode": (pad >> 8) & 15,
+            "pad_route_before": (pad >> 16) & 255, "pad_route_after": (pad >> 24) & 255,
+        }
     return status
 
 
@@ -121,7 +166,7 @@ async def ring_action(entry, action, value=None):
             )
             status = await asyncio.wait_for(future, 10)
             if status["result"]:
-                raise ValueError("LED-Befehl vom Gerät abgelehnt; Versorgung und Treiberstatus prüfen")
+                raise ValueError(f"LED-Befehl abgelehnt: Operation {operation}, Treiberfehler {status['error']}, Versorgung {status['supply_confirmed']}, aktiv {status['started']}")
             return status
         finally:
             runtime.ring_waiters.pop(ieee, None)
@@ -139,6 +184,12 @@ async def ring_action(entry, action, value=None):
             raise ValueError("LED-Leitungsprüfung wurde nicht ausgeführt")
         if action == "wire_check" and status["wire_probe"].get("hardware_capture") and status["wire_probe"].get("transport_variant") != argument:
             raise ValueError("LED-Prüfvariante wurde nicht bestätigt")
+        if action == "boot_status" and "boot_diagnostics" not in status:
+            raise ValueError("Resetdiagnose wurde nicht bestätigt")
+        if action == "pad_check" and not status.get("boot_diagnostics", {}).get("pad_check_completed"):
+            raise ValueError("GPIO-Prüfung wurde nicht abgeschlossen")
+        if action == "journal_test" and status.get("boot_diagnostics", {}).get("current_stage") != 950:
+            raise ValueError("Kontrollierter Diagnoseneustart wurde nicht bestätigt")
         if action == "confirm_supply" and not status["supply_confirmed"]:
             raise ValueError("Versorgungsbestätigung fehlt")
         if action == "brightness" and status["brightness"] != value:

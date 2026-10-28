@@ -106,3 +106,15 @@ stellt den exakten alten Zustand wieder her. Ein nativer SDK-Header-Regressionst
 sichert dies. V3-capture_faults nennt zusätzlich tatsächliche Ressourcenblocker
 in Bits16..23; HA führt diese einzeln als resource_blockers auf.
 Kein GPIO-/Hardwaredefekt wird aus einem nicht gestarteten Capture abgeleitet.
+
+## Resetdiagnose0.1.27
+
+Nach bestätigtem nicht manuellem Reset um0.1.49 liefert0.1.50 über boot_status
+den gespeicherten Core-Resetgrund und ein validiertes, zweifach gepuffertes
+RAM-Journal. Es kann den bereits vergangenen0.1.49-Resetgrund nicht rekonstruieren.
+Zuerst journal_test bei Ring aus (keine Pinänderungen) und bestätigte Retention
+prüfen, danach pad_check ohne Timer, erst dann wire_check. Ein terminaler
+Schritt900 bedeutet abgeschlossener Test und darf nicht als aktive Absturzstelle
+interpretiert werden. Journal ist nicht über beliebige OTA-/Powerverluste garantiert.
+Neue V4/56Byte-Antworten für Operation8..10; übrige Formate bleiben kompatibel.
+Keine normalen Konfigurationsentitäten, Lichtaktionen oder automatischen LEDs.
