@@ -1111,8 +1111,18 @@ def test_v10_keeps_verified_status_frame_size_and_all_diagnostics(check):
 
 
 def test_v10_rejects_reserved_profile_and_boot_bits():
-    for value in (0, 2, 0x61, 0x81):
+    for value in (0, 3, 0x61, 0x81):
         packet = bytearray(v8_packet())
         packet[0] = 10
         packet[27] = value
         assert protocol.touch_status(packet) is None
+
+
+def test_v10_paired_profile_preserves_frame_and_allows_its_own_calibration():
+    packet = bytearray(v8_packet())
+    packet[0] = 10
+    packet[27] = 0x22
+    status = protocol.touch_status(packet)
+    assert status["profile_version"] == 2 and status["startup_check"] == 2
+    assert status["frontend_active"] and status["measurement_model"] == "paired_rc"
+    assert len(packet) == 76
