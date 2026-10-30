@@ -19,12 +19,12 @@ from homeassistant.helpers.script import Script, async_validate_actions_config
 from homeassistant.helpers.storage import Store
 from zigpy import types as t
 from zigpy.exceptions import ZigbeeException
-from zigpy.ota.providers import RemoteZigpyProvider
 from zigpy.zcl import foundation
 from zigpy.zdo import types as zdo_t
 
 from . import protocol
 from .const import DOMAIN, ENDPOINT, IGNORE_LABEL, MAX_TARGETS, TOUCH_ACTIVATION_LOCKED
+from .firmware_updates import MoSwitchOtaProvider
 from .indicator import ring_reply
 from .rooms import device_area, ieee_for_device, room_entities, scene_cycle
 
@@ -96,6 +96,7 @@ class Runtime:
         if label is None:
             label = labels.async_create(IGNORE_LABEL)
         self.ignore_label = label.label_id
+        self.register_ota_provider()
         for event in (
             "device_registry_updated",
             "entity_registry_updated",
@@ -110,6 +111,25 @@ class Runtime:
                 timedelta(seconds=60),
             )
         )
+
+    def register_ota_provider(self):
+        try:
+            controller = get_zha_gateway(self.hass).application_controller
+        except (HomeAssistantError, KeyError, ValueError):
+            return
+        # Limit images by manufacturer/model metadata, not by the Silicon Labs
+        # node-descriptor manufacturer code used by the development stack.
+        if (
+            hasattr(controller, "ota")
+            and controller.ota is not self.ota_controller
+        ):
+            controller.ota.register_provider(
+                MoSwitchOtaProvider(
+                    url="https://raw.githubusercontent.com/MrMorice/moswitch-home-assistant/main/ota/index.json",
+                    manufacturer_ids=[],
+                )
+            )
+            self.ota_controller = controller.ota
 
     def schedule_sync(self, _event=None):
         if self.pending:
@@ -170,6 +190,7 @@ class Runtime:
                 async_dispatcher_send(self.hass, f"{DOMAIN}_{entry.entry_id}")
 
     def listen_switch(self, entry):
+        self.register_ota_provider()
         device = self.get_switch(entry)
         cluster = device.endpoints[ENDPOINT].in_clusters[0]
         attached = self.listeners.get(entry.entry_id)
@@ -317,19 +338,6 @@ class Runtime:
             }
             # Persist allocation before changing physical devices.
             await self.store.async_save({"rooms": self.rooms})
-        # Limit images by manufacturer/model metadata, not by the Silicon Labs
-        # node-descriptor manufacturer code used by the development stack.
-        if (
-            hasattr(gateway.application_controller, "ota")
-            and gateway.application_controller.ota is not self.ota_controller
-        ):
-            gateway.application_controller.ota.register_provider(
-                RemoteZigpyProvider(
-                    url="https://raw.githubusercontent.com/MrMorice/moswitch-home-assistant/main/ota/index.json",
-                    manufacturer_ids=[],
-                )
-            )
-            self.ota_controller = gateway.application_controller.ota
         group = self.rooms[area]["group"]
         value = protocol.revision(group, targets)
         signature = (area, value)
