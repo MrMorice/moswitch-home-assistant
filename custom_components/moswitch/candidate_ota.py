@@ -1,7 +1,7 @@
 """Admin-only, device-scoped installation of pinned quiet test images.
 
 No provider registration, filesystem writes, remote downloads or global OTA index.
-The allowlist contains only the locally built 0.1.53–0.1.60 test candidates;59+ restore LED settings at boot.
+The allowlist contains only the locally built Legacy verified candidates and the pinned59-to61 recovery.
 """
 
 import asyncio
@@ -20,20 +20,18 @@ from zigpy.ota.providers import BaseOtaImageMetadata
 from zigpy.zcl import ClusterType, foundation
 from zigpy.zcl.clusters.general import Ota
 
+from .led_diagnostics import ring_action
 from .ota_probe import control
 from .ota_transport import PROFILES, transfer_image
 
 _LOGGER = logging.getLogger(__name__)
 DATA = "moswitch_candidate_ota"
-VERSION = 0x0001003C
+VERSION = 0x0001003D
 SOURCE_VERSION = 0x0001003B
-SHA256 = "ddef607c33073fa9f2589df6b3281d1e552869d84ac15620b0724059d8e54309"
-SIZE = 368966
+SHA256 = "edf55f6cf37fb8109993534d400db8e2c0616ef222deec9e5a702c561c47999f"
+SIZE = 368934
 CANDIDATES = {
     VERSION: {"source": SOURCE_VERSION, "sha256": SHA256, "size": SIZE},
-    0x0001003B: {"source": 0x00010038, "sha256": "76d1e3181bf17e16645c5c860d1e853a762ab7aa506a2d911b9f27cfe86f1cec", "size": 368966},
-    0x0001003A: {"source": 0x00010039, "sha256": "059d0ace1234e57deeab3eaa0fc5bb324f19254c9b5e601a72a484afb58c2dbb", "size": 367970},
-    0x00010039: {"source": 0x00010038, "sha256": "9ad75052a68680525be2a56d4afcacd104e91ffd7c7b48396f3bf6bdb83921e5", "size": 367970},
     0x00010038: {"source": 0x00010037, "sha256": "6d026566c52b55b4ef2aa475bf30421198d268ccf94ae682f822cba72695fdb9", "size": 367234},
     0x00010037: {"source": 0x00010036, "sha256": "f0df586721a521fee35ce361146f1dd3ec214992b39811f277e703ff899922a3", "size": 367202},
     0x00010035: {"source": 0x00010034, "sha256": "0fa9cb9eef6fe90b2d2b23768a5b5b5d46a9888904fb6c07e2d2de9d31667bee", "size": 367202},
@@ -52,7 +50,7 @@ def decode_candidate(encoded):
     selected = next(((version, spec) for version, spec in CANDIDATES.items()
                      if len(data) == spec["size"] and digest == spec["sha256"]), None)
     if selected is None:
-        raise ValueError("Nur die festgelegten Testbuilds 0.1.53 bis 0.1.60 sind zugelassen")
+        raise ValueError("Nur die festgelegten verifizierten Testbuilds und die festgelegte Wiederherstellung0.1.61 sind zugelassen")
     target, spec = selected
     image, remaining = parse_ota_image(data)
     header = image.header
@@ -84,13 +82,23 @@ async def install(entry, image, job, profile="large_mac"):
         # Demand a fresh physical report, not a cached test-mode checkbox.
         before = runtime.touch_received_at.get(entry.entry_id, 0)
         await runtime.test_touch(entry, True)
-        async with asyncio.timeout(30):
-            while True:
-                status = runtime.touch_status.get(entry.entry_id, {})
-                if (runtime.touch_received_at.get(entry.entry_id, 0) > before
-                        and status.get("test_mode") and status.get("state") == 10):
-                    break
-                await asyncio.sleep(0.25)
+        if source == 0x0001003B and image.version == 0x0001003D:
+            # This exact deployed build cannot send its oversized touch report.
+            # Its acknowledged 0x48 executes the quiet transition before ACK.
+            # Require a second nonce-matched physical reply; do not generalize
+            # this recovery exception to other source/target combinations.
+            led = await ring_action(entry, "status")
+            if led["error"]:
+                raise ValueError("Gerätebestätigung für Wiederherstellung fehlgeschlagen")
+            job["quiet_confirmation"] = "0x48 acknowledged; nonce-matched LED reply; pinned59-to61 recovery"
+        else:
+            async with asyncio.timeout(30):
+                while True:
+                    status = runtime.touch_status.get(entry.entry_id, {})
+                    if (runtime.touch_received_at.get(entry.entry_id, 0) > before
+                            and status.get("test_mode") and status.get("state") == 10):
+                        break
+                    await asyncio.sleep(0.25)
         runtime.ota_active_entries.add(entry.entry_id)
         if source >= 0x00010034:
             settings = PROFILES[profile]

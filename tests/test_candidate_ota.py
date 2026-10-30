@@ -18,6 +18,7 @@ def legacy_transfer_mock(monkeypatch):
         return await device.update_firmware(image=image, progress_callback=progress_callback)
     monkeypatch.setattr(candidate, "transfer_image", transfer)
     monkeypatch.setattr(candidate, "control", AsyncMock(return_value={"result": 0}))
+    monkeypatch.setattr(candidate, "ring_action", AsyncMock(return_value={"error": 0}))
 
 
 def ota_file(version=candidate.VERSION, manufacturer=0xFFF1):
@@ -162,3 +163,23 @@ async def test_post_update_query_failure_keeps_action_guard():
     await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
     assert job["state"] == "complete" and not job["startup_status_confirmed"]
     assert "one" in entry.runtime_data.touch_quiet
+
+
+@pytest.mark.asyncio
+async def test_pinned_59_recovery_requires_ack_and_nonce_matched_reply():
+    entry, device, _ = setup_entry()
+    entry.runtime_data.test_touch = AsyncMock()  # ACK succeeds, broken build has no fresh touch report.
+    job = {}
+    await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
+    candidate.ring_action.assert_awaited_once_with(entry, "status")
+    assert job["state"] == "complete" and "pinned59-to61" in job["quiet_confirmation"]
+
+
+@pytest.mark.asyncio
+async def test_pinned_recovery_refuses_missing_second_physical_reply():
+    entry, device, _ = setup_entry()
+    candidate.ring_action.side_effect = TimeoutError("no nonce reply")
+    job = {}
+    await candidate.install(entry, SimpleNamespace(version=candidate.VERSION), job)
+    assert job["state"] == "failed"
+    device.update_firmware.assert_not_awaited()
