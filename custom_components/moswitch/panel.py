@@ -109,10 +109,10 @@ async def async_register(hass):
     ), StaticPathConfig(
         "/moswitch_static/device-dialog.js", str(Path(__file__).with_name("device-dialog.js")), False,
     )])
-    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.37")
+    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.38")
     await panel_custom.async_register_panel(
         hass, frontend_url_path="moswitch", webcomponent_name="moswitch-device-settings",
-        module_url="/moswitch_static/device-settings.js?v=0.1.37", require_admin=True,
+        module_url="/moswitch_static/device-settings.js?v=0.1.38", require_admin=True,
     )
     for handler in (ws_subscribe, ws_action, ws_save, ws_preview, ws_info):
         websocket_api.async_register_command(hass, handler)
@@ -195,7 +195,7 @@ async def ws_action(hass, connection, msg):
             await confirmed_touch_command(hass, entry, runtime.query_touch, lambda s: True)
             status = runtime.touch_status[entry.entry_id]
             if status.get("protocol_version", 0) < 7 or not status.get("frontend_active"):
-                raise ValueError("Zum Einlernen sind eine aktive Touchmessung und Firmware ab 0.1.37 erforderlich.")
+                raise ValueError("Zum Einlernen sind eine aktive Touchmessung und Firmware ab 0.1.38 erforderlich.")
             if hass.data[PANEL_DATA]["sessions"].get(msg["session"]) is not session:
                 raise ValueError("Die Einstellungsseite wurde geschlossen.")
             session["owns"] = True

@@ -198,7 +198,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
     const preparing=this._busy&&this._pendingAction==='prepare'&&!active;
     q('mode').className = 'pill'+(!fresh||d.quiet?' quiet':'');
     q('mode').innerHTML = `<i></i>${!fresh?'Keine aktuellen Messdaten':d.quiet?'Einlernen pausiert Schaltaktionen':'Schaltbetrieb aktiv'}`;
-    q('touch-summary').textContent = fresh && [1,3,4].includes(s.startup_check) ? 'Startprüfung · Fläche freigeben; gespeicherte Kalibrierung bleibt erhalten' : !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet && s.actions_locked ? 'Testfirmware · Schaltbetrieb dauerhaft gesperrt' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
+    q('touch-summary').textContent = fresh && [1,3,4].includes(s.startup_check) ? 'Startprüfung · Fläche freigeben; gespeicherte Kalibrierung bleibt erhalten' : !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet && s.actions_locked ? 'Firmware sperrt den Schaltbetrieb' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
     q('touch-home').hidden = showing;
     q('wizard').hidden = !showing;
     q('learn').disabled = this._busy;
@@ -216,7 +216,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
     else if (state===11) {title='Jetzt berühren und halten';instruction='Erst kurz loslassen. Dann die Fläche berühren und den Finger liegen lassen, bis hier „Jetzt loslassen“ erscheint.';}
     else if (state===12) {title='Weiter halten';instruction='Finger liegen lassen. Der Schalter prüft den durchgehenden Kontakt.';feedback=`Noch ${(s.hold_remaining_ms/1000).toFixed(1)} Sekunden`;}
     else if (state===13) {title='Jetzt loslassen';instruction='Die Fläche vollständig freigeben. Anschließend speichert der Schalter die ermittelten Werte.';}
-    else if (state===3 && s.actions_locked) {title='Touchfläche erfolgreich eingelernt';instruction='Die Kalibrierung ist gespeichert. Diese Testfirmware sperrt den Schaltbetrieb dauerhaft.';feedback='Eine Firmware mit freigebbarem Schaltbetrieb ist erforderlich.';}
+    else if (state===3 && s.actions_locked) {title='Touchfläche erfolgreich eingelernt';instruction='Die Kalibrierung ist gespeichert. Die installierte Firmware sperrt den Schaltbetrieb.';feedback='Eine Firmware mit freigebbarem Schaltbetrieb ist erforderlich.';}
     else if (state===3) {title='Touchfläche erfolgreich eingelernt';instruction='Alle Schritte sind abgeschlossen. Die Werte sind gespeichert.';feedback=d.quiet?'Mit „Fertig“ kehrst du zum Schaltbetrieb zurück.':'Der Schalter ist zum Schalten freigegeben.';}
     else {title=state===8?'Einlernen abgebrochen':'Einlernen nicht abgeschlossen';instruction=(d.message||'Bitte Verbindung und Messdaten prüfen.').replace(/\*\*/g,'');feedback=(instruction.includes('Die bisherigen Werte bleiben erhalten.')?'':'Die bisherigen Werte bleiben erhalten. ')+'Schaltaktionen bleiben im stillen Modus gesperrt.';}
     if(preparing){title='Einlernen wird vorbereitet …';instruction='Warte auf die Bestätigung vom Schalter.';feedback='';}

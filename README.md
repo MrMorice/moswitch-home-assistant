@@ -4,9 +4,9 @@ MoSwitch ergänzt einen kapazitiven Zigbee-Raumschalter um automatische
 Raumzuordnung, Szenenwechsel und konfigurierbare Doppeltipp-Aktionen in Home
 Assistant mit ZHA. Die Integration wird über HACS installiert.
 
-**Entwicklungsstand 0.1.17:** Integration für die MoSwitch-Bench-Firmware.
-Keine fertige Produktfreigabe. Die Integration wird mit Home Assistant 2026.10.2
-und ZHA 2.3.1 entwickelt. Raumsteuerung und Firmware müssen zusammen getestet werden.
+**Stand 0.1.38:** Kompakte Geräteeinstellungen für die ACMP-Firmware ab 0.1.62.
+Geprüft mit Home Assistant 2026.10.4. Prüfstand und noch offene Hardwaretests
+stehen in den Releaseprotokollen.
 
 ## Einrichtung
 
@@ -94,7 +94,7 @@ Voraussetzung sind eine erfolgreich eingerichtete Firmware und unterstützte Lam
 Die native Szenenspeicherung und das Verhalten bei Ausfällen werden am realen
 Aufbau verifiziert; Cluster-Unterstützung allein ist noch kein Funktionsnachweis.
 
-## Grenzen dieser Testversion
+## Grenzen und Prüfstand
 
 - Maximal zwölf physische Licht-Endpunkte pro Raum.
 - Herstellerprotokoll auf dem Basic-Cluster mit Entwicklungskennung `0xFFF1`;
@@ -102,8 +102,8 @@ Aufbau verifiziert; Cluster-Unterstützung allein ist noch kein Funktionsnachwei
 - HA-spezifische Integration für 2026.10; keine Zusage für ältere ZHA-APIs.
 - Für mehrere Player folgt Play/Pause derzeit der jeweiligen HA-Aktion pro Player.
 - Erstinstallation und passender OTA-Bootloader benötigen USB/SWD. Der OTA-Index
-  enthält Firmware-Prototyp 0.1.4 ausschließlich für Firmware 0.1.2/0.1.3 mit
-  passendem MoSwitch-Bootloader. Ein Firmware-Update wird über die native ZHA-Update-Entity
+  bietet Firmware 0.1.62 für den geprüften Vorgänger 0.1.61 mit
+  passendem MoSwitch-Bootloader an. Ein Firmware-Update wird über die native ZHA-Update-Entity
   gestartet; es ist kein HACS-Update und benötigt keinen HA-Neustart.
 - Direkte Steuerung und Wiederherstellung wurden mit einem Shelly Dimmer Gen4
   bei physisch abgezogenem Koordinator geprüft. Mehrere Lampen/Schalter sowie
@@ -112,8 +112,8 @@ Aufbau verifiziert; Cluster-Unterstützung allein ist noch kein Funktionsnachwei
   Blöcke wurde bei unveränderter Aufstellung bestätigt (rund 16 Minuten),
   einschließlich Image-Prüfung, Neustart und Konfigurationserhalt. Ein Einfach-Tipp
   kann einen Download kontrolliert abbrechen und direkt das Licht schalten.
-- Keine Fernsteuerung des Rings, keine Cloud und keine in der Firmware
-  hinterlegte HA-IP-Adresse.
+- Der Ring zeigt den Gerätestatus. Ein-/Ausschalten und Helligkeit sind konfigurierbar;
+  er ist keine Raumleuchte. Keine Cloud und keine hinterlegte HA-IP-Adresse.
 
 ## Entwicklung und Prüfung
 
@@ -148,7 +148,7 @@ node tools/test_device_dialog.cjs /absoluter/pfad/zu/ha-zugangsdaten.json
 
 Die Datei enthält `url` und `token`. Optional sind `BROWSER_CHANNEL` und
 `MOSWITCH_UI_OUTPUT` konfigurierbar. Die Aufzeichnungen liegen standardmäßig unter
-`dist/0.1.37/verification/`. Der Test prüft Geräte-Link, unveränderte Geräte-URL,
+`dist/0.1.38/verification/`. Der Test prüft Geräte-Link, unveränderte Geräte-URL,
 Zuordnung, alle Lernphasen, Abschluss mit „Fertig“,
 Escape, Mobilansicht, Themevariablen und den Schutz vor falscher Gerätezuordnung.
 Er ersetzt keinen physischen Einlerndurchlauf.

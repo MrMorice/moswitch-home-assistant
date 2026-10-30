@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const output = path.resolve(process.env.MOSWITCH_UI_OUTPUT || path.join(root, 'dist/0.1.37/verification'));
+const output = path.resolve(process.env.MOSWITCH_UI_OUTPUT || path.join(root, 'dist/0.1.38/verification'));
 fs.mkdirSync(output, { recursive: true });
 
 (async () => {
@@ -25,7 +25,7 @@ fs.mkdirSync(output, { recursive: true });
       }));
     }
     await page.goto(credentials.url + '/config/devices/dashboard', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => document.querySelector('home-assistant')?.hass?.devices);
+    await page.waitForFunction(() => document.querySelector('home-assistant')?.hass?.devices, null, {timeout:120000});
     const target = await page.evaluate(() => {
       const device = Object.values(document.querySelector('home-assistant').hass.devices).find(d => d.manufacturer === 'MoSwitch' && d.configuration_url);
       if (!device) throw Error('No configured MoSwitch device available');
@@ -81,7 +81,7 @@ fs.mkdirSync(output, { recursive: true });
         ? Promise.resolve({ entry_id: msg.entry_id, device_id: window.wrongDialogDevice ? 'wrong' : deviceId, name: data.name })
         : call(msg);
     }, target);
-    await page.addScriptTag({ type: 'module', url: credentials.url + '/moswitch_static/device-dialog.js?v=0.1.37' });
+    await page.addScriptTag({ type: 'module', url: credentials.url + '/moswitch_static/device-dialog.js?v=0.1.38' });
     await page.waitForFunction(() => !!customElements.get('moswitch-device-dialog'));
     const href = '/config/devices/device/' + target.deviceId + '?moswitch_settings=' + target.entryId;
     const link = page.locator('ha-device-info-card a[href*="moswitch"]').first();
@@ -148,4 +148,4 @@ fs.mkdirSync(output, { recursive: true });
     assert.deepEqual(errors, []);
     console.log('Device dialog: launch, unchanged URL, scoped actions, assignment, all learning phases, finish, Escape, mobile and wrong-device guard passed.');
   } finally { await browser.close(); }
-})().catch(error => { console.error(error.message); process.exit(1); });
+})().catch(error => { console.error(error.stack); process.exit(1); });

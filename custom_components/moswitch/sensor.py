@@ -31,12 +31,16 @@ class TouchStatus(SensorEntity):
     @property
     def available(self):
         runtime = self.entry.runtime_data
+        if runtime.is_updating(self.entry):
+            return True
         received = runtime.touch_received_at.get(self.entry.entry_id)
         return (received is not None and received > self._query_failed_at
                 and time.monotonic() - received < 120)
 
     @property
     def native_value(self):
+        if self.entry.runtime_data.is_updating(self.entry):
+            return "Firmwareupdate"
         status = self.entry.runtime_data.touch_status.get(self.entry.entry_id)
         if status is None:
             return None

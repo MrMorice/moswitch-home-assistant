@@ -44,15 +44,15 @@
       },
       "touch_baseline": {
         "title": "Ruhewert messen · 1/3 · {device}",
-        "description": "Die Fläche vollständig loslassen und erst dann Weiter drücken. Etwa vier Sekunden unberührt lassen. Danach folgen zehn kurze Tipps und der Haltetest. Vor dem ersten Tipp läuft kein Zeitlimit."
+        "description": "Die Fläche vollständig loslassen und erst dann Weiter drücken. Etwa vier Sekunden unberührt lassen. Danach folgen zehn kurze Tipps und ein gehaltener Kontakt. Vor dem ersten Tipp läuft kein Zeitlimit."
       },
       "touch_watch": {
-        "title": "Tipps und Haltetest · {device}",
-        "description": "{status}\n\nLicht-, Szenen- und Medienaktionen bleiben gesperrt. Beim Schließen wird der Lernvorgang abgebrochen; der stille Testmodus bleibt aktiv."
+        "title": "Touchfläche einlernen · {device}",
+        "description": "{status}\n\nWährend des Einlernens sind Schaltaktionen gesperrt. Schließen bricht den laufenden Lernvorgang ab."
       },
       "touch_result": {
         "title": "Ergebnis des Einlernens · {device}",
-        "description": "{status}\n\nIm stillen Testmodus werden keine Licht-, Szenen- oder Medienaktionen ausgelöst.",
+        "description": "{status}",
         "data": {
           "action": "Wie weiter?"
         }
@@ -63,11 +63,11 @@
       "room_players_only": "Nur Mediaplayer aus dem Raum auswählen.",
       "room_scenes_only": "Nur Szenen aus dem Raum auswählen.",
       "invalid_actions": "Bitte die eigene Aktion prüfen.",
-      "touch_upgrade": "Für Ruhewert, zehn Tipps und Haltetest ist ACMP-Firmware ab 0.1.35 erforderlich.",
-      "touch_connection": "Keine bestätigte Rückmeldung vom Schalter. Touchstatus prüfen und erneut versuchen; der stille Testmodus bleibt aktiv, falls er bereits eingeschaltet wurde."
+      "touch_upgrade": "Für Ruhewert, zehn Tipps und gehaltenen Kontakt ist ACMP-Firmware ab 0.1.35 erforderlich.",
+      "touch_connection": "Keine bestätigte Rückmeldung vom Schalter. Bitte die Verbindung prüfen und erneut versuchen."
     },
     "progress": {
-      "touch_learning": "{status}\n\nAlle Schaltaktionen sind gesperrt. Beim Schließen bleibt der stille Testmodus aktiv."
+      "touch_learning": "{status}\n\nWährend des Einlernens sind Schaltaktionen gesperrt."
     }
   },
   "selector": {
