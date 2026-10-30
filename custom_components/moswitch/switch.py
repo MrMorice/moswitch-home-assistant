@@ -1,67 +1,39 @@
-"""Explicit quiet test session, including held-electrode diagnosis."""
+"""Status-light preference on the existing physical device."""
 
-import time
+from datetime import timedelta
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.const import EntityCategory
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers.dispatcher import async_dispatcher_connect
-from zigpy.exceptions import ZigbeeException
 
-from .const import DOMAIN
-from .touch_wizard import confirmed_touch_command
+from .indicator import IndicatorEntity, indicator_action
+
+SCAN_INTERVAL = timedelta(seconds=60)
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    entity = TouchTestMode(entry)
+    entity = StatusLight(entry)
     entity.device_entry = dr.async_get(hass).async_get(entry.data["device_id"])
-    async_add_entities([entity])
+    async_add_entities([entity], update_before_add=True)
 
 
-class TouchTestMode(SwitchEntity):
-    _attr_entity_registry_enabled_default = True
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_should_poll = False
-    _attr_icon = "mdi:test-tube"
+class StatusLight(IndicatorEntity, SwitchEntity):
+    _attr_icon = "mdi:led-on"
+    _attr_name = "Statuslicht"
+    _attr_should_poll = True
 
     def __init__(self, entry):
-        self.entry = entry
-        self._attr_unique_id = f"{entry.unique_id}_touch_test_mode"
-        self._attr_name = f"{entry.title} Touch-Testmodus"
-
-    @property
-    def available(self):
-        runtime = self.entry.runtime_data
-        status = runtime.touch_status.get(self.entry.entry_id, {})
-        return (status.get("protocol_version", 0) >= 5 and
-                time.monotonic() - runtime.touch_received_at.get(self.entry.entry_id, 0) < 120)
+        super().__init__(entry)
+        self._attr_unique_id = f"{entry.unique_id}_status_light"
 
     @property
     def is_on(self):
-        return self.entry.runtime_data.touch_status.get(self.entry.entry_id, {}).get("test_mode", False)
+        return self.status.get("enabled")
 
     async def async_turn_on(self, **kwargs):
-        await self.set_mode(True)
+        await indicator_action(self.entry, "enable")
 
     async def async_turn_off(self, **kwargs):
-        await self.set_mode(False)
+        await indicator_action(self.entry, "disable")
 
-    async def set_mode(self, enabled):
-        runtime = self.entry.runtime_data
-        status = runtime.touch_status.get(self.entry.entry_id, {})
-        if not enabled and (status.get("state") in (1, 2, 7, 9, 11, 12, 13) or not status.get("calibrated")):
-            raise HomeAssistantError("Einlernen zuerst abschließen oder abbrechen; eine gültige Kalibrierung ist zum Schalten erforderlich")
-        try:
-            await confirmed_touch_command(
-                self.hass, self.entry, runtime.test_touch,
-                lambda s: bool(s.get("test_mode")) == enabled and (enabled or s.get("state") == 3),
-                enabled,
-            )
-        except (ZigbeeException, TimeoutError, ValueError, KeyError, RuntimeError) as err:
-            raise HomeAssistantError("Touch-Testmodus nicht bestätigt") from err
-
-    async def async_added_to_hass(self):
-        self.async_on_remove(async_dispatcher_connect(
-            self.hass, f"{DOMAIN}_{self.entry.entry_id}", self.async_write_ha_state,
-        ))
+    async def async_update(self):
+        await indicator_action(self.entry, "status")

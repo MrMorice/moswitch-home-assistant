@@ -32,46 +32,37 @@ HA sendet dafür keinen zusätzlichen Toggle.
 
 ## Touchfläche einlernen
 
-Im Geräte-Dialog unter **Touchfläche** auf **Touchfläche einlernen** drücken. Der neue Ablauf
-benötigt Protokoll 7 und eine aktive Touchmessung; aktuell geprüft mit Firmware
-0.1.38. Messingscheibe und endgültigen Aufbau vor dem Einlernen montieren.
+Auf der ZHA-Geräteseite unter **Geräte-Informationen → Besuchen** öffnet sich
+MoSwitch direkt für dieses Gerät. Der Dialog enthält **Touchfläche** und
+**Zuordnung & Aktionen**. Jeder Schalter hat seine eigenen Einstellungen.
 
-1. Die Fläche vollständig loslassen und **Ruhemessung starten** wählen.
-2. Etwa vier Sekunden unberührt lassen. Der Assistent wechselt danach selbst
-   zur Anzeige **0 / 10**.
-3. Zehnmal kurz tippen und dazwischen vollständig loslassen. Zähler und Hinweise
-   folgen bestätigten Geräteberichten.
-4. Nach dem zehnten Tipp nochmals berühren und halten, bis **Jetzt loslassen**
-   erscheint. Erst dann den Finger wegnehmen.
-5. Das gespeicherte Ergebnis prüfen. **Zum Schalten freigeben** aktiviert den
-   Schalter ausdrücklich; **Im stillen Testmodus bleiben** hält Aktionen gesperrt.
+Die endgültige Touchfläche vor dem Einlernen montieren:
 
-Abbruch, Verbindungsabbruch oder Schließen aktivieren keine Schaltaktionen.
-Eine von dieser Seite gestartete laufende Lernsitzung wird beim Schließen
-abgebrochen. Der stille Diagnosemodus kann ebenfalls hier eingeschaltet werden;
-eine vorhandene gültige Kalibrierung lässt sich ausdrücklich wieder freigeben.
+1. **Touchfläche einlernen** öffnen, die Fläche vollständig loslassen und
+   **Ruhemessung starten** wählen.
+2. Etwa vier Sekunden unberührt lassen.
+3. Zehnmal kurz tippen und dazwischen vollständig loslassen.
+4. Nochmals berühren und halten, bis **Jetzt loslassen** erscheint.
+5. Loslassen. Nach erfolgreichem Speichern kehrt Firmware 0.1.62 automatisch
+   zum Schalten zurück. **Fertig** schließt den Dialog.
 
-Die normale Geräteseite zeigt wieder native Konfigurations-Entitäten: Baseline,
-Ein-/Loslassabstand, Touch-Testmodus und Doppeltipp-Verhalten. Unter Diagnose stehen
-Touchstatus, Kontakt, Lernfortschritt, Ruhewert und Ruheschwankung. Mediengeräte,
-Szenenreihenfolge und eigene Aktionen werden im Reiter **Zuordnung & Aktionen**
-zugewiesen. Die normale HA-Raumzuordnung bleibt ebenfalls verwendbar.
+Während des Einlernens sind Schaltaktionen gesperrt. Bei Abbruch oder Fehler
+werden bisherige Werte erhalten; eine vorhandene Kalibrierung kann im Dialog
+wieder aktiviert werden. Eine laufende Sitzung wird beim Schließen abgebrochen.
 
-Zusätzliche Messwerte, Timing-Parameter und alte einzelne Lern-Buttons bleiben
-standardmäßig deaktiviert. Alle Parameter sind weiterhin im eingeklappten Bereich
-**Diagnose und Feineinstellung** des Dialogs verfügbar. Bei der Migration werden
-nur zuvor durch die Integration deaktivierte wichtige Controls wieder aktiviert;
-Benutzer-Deaktivierungen und spätere manuelle Entscheidungen bleiben erhalten.
-ZHA-Firmwareupdate und Identifizieren werden nicht geändert.
+Die Geräteseite zeigt **Status**, **Statuslicht**, **Statuslicht Helligkeit** und
+**Doppeltippen**. ZHA stellt weiterhin Firmwareupdates und Identifizieren bereit.
+Rohmesswert-Sensoren, einzelne Kalibrierungsbuttons und Testmodus-Regler werden
+bei der Aktualisierung aus der MoSwitch-Registrierung entfernt. Die Integration
+verändert keine fremden Entitäten, Automationen oder Geräteeinstellungen.
 
-Das HACS-Paket registriert ein eigenes Frontend-Modul über HAs Extra-Module und
-öffnet den Dialog über den HA-Dialogmanager. Es verändert keine HA-Komponenten
-oder Geräteseiten-Templates. Browser Mod und Dashboard-Karten werden nicht
-benötigt. Der Einstieg ist der vorhandene Geräte-Link **Besuchen** unter
-Geräte-Informationen. Es wird kein zusätzlicher Button in die Konfigurationskarte
-injiziert. Nach dem Update den Browser vollständig neu laden, damit das Modul
-auch auf der Geräteseite geladen ist. Alte Links auf `/moswitch/<entry_id>` und
-die nativen MoSwitch-Optionsdialoge bleiben als Rückfallweg verfügbar.
+Manuelle Touchparameter bleiben im eingeklappten Bereich **Erweiterte
+Touch-Einstellungen** verfügbar. Änderungen erfordern eine Speicherbestätigung
+des Geräts. Die Helligkeit begrenzt die LED-Ausgabe wie bisher auf 64/255;
+100 % im Einsteller entspricht dieser vorgesehenen Obergrenze.
+
+Das HACS-Paket registriert ein Frontend-Modul über HAs Extra-Module und öffnet
+den Dialog über den HA-Dialogmanager. Es ersetzt keine HA-Geräteseite.
 
 ## Aktivitäten beim Schalter
 
@@ -141,86 +132,6 @@ unter `dist/<version>/`. `AGENTS.md` beschreibt Worktree-, Verifizierungs- und
 Releaseablauf. Zugangsdaten und Netzwerkkonfiguration gehören niemals ins Repo.
 
 
-Ab Integration 0.1.8 und Firmware-Prototyp 0.1.13 zeigt „Touchkontakt“ den
-bestätigten Kontaktbeginn und das Loslassen direkt am bestehenden ZHA-Gerät.
-Die Kalibrierungsanzeige unterscheidet „Kontakt erkannt“, „Tipp gezählt“ und
-sichtbare Ablehnungsgründe (zu lang, zu schwach, Messaussetzer). Jeder erkannte
-Lernkontakt und sein Ergebnis erscheinen zusätzlich im Aktivitätsbereich als
-Kalibrierungsereignis, ohne normale Schaltaktionen auszulösen. Das Zählen erfolgt
-erst nach Loslassen. Zulässige Lernkontakte dauern jetzt bis zu zwei Sekunden.
-Das Akzeptieren ungültiger Messungen oder eine dauernde Driftkalibrierung ist
-damit nicht verbunden. Ein Netzstörungsproblem kann weiter Kontakte verhindern;
-die Oberfläche benennt es jetzt. Ältere Statusprotokolle bleiben lesbar.
-
-Ab Integration 0.1.9 sind Touch-Messwert, gespeicherte Baseline, absolute
-Einschalt-/Loslassschwellen, letzte Lernkontaktdauer und verworfene Lernkontakte
-als eigene Sensoren sichtbar. Unter Konfiguration stehen Baseline sowie
-Einschalt- und Loslassabstand als ganzzahlige µs-Felder. Eine größere
-Einschaltdifferenz macht den Touch weniger empfindlich. Der Loslassabstand
-muss kleiner bleiben; zum Loslassen muss der Messwert entsprechend sinken.
-Die absoluten Schwellen sind jeweils Baseline plus Abstand.
-
-Schreiben erfordert Firmware 0.1.14; bei älterer Firmware bleiben die Einsteller
-nicht verfügbar, die vorhandenen Messwerte bleiben lesbar. Während Kalibrierung
-oder Berührung werden Änderungen abgelehnt. Werte werden gemeinsam geprüft,
-im EEPROM-Journal gespeichert und zurückgelesen. HA zeigt keinen optimistischen
-Erfolg, sondern verlangt die Rückmeldung des gespeicherten Tupels. Ein ACK ohne
-Wertebestätigung reicht nicht. Die angezeigten Sensorwerte folgen Statusberichten;
-zusätzliche Sensoren erzeugen keine eigenen Funkabfragen.
-
-Ab Integration **0.1.10** mit Firmware **0.1.18**: „Touch-Testmodus“ erlaubt
-Diagnose auch bei gehaltener Scheibe. Alle normalen Schalt-/Szenen-/Medienaktionen
-bleiben im Testmodus gesperrt, auch nach Lernfehler oder Abbruch. Zum Einlernen
-„Touch kalibrieren“, vollständig loslassen und „Touch-Ruhemessung starten“.
-Vier Sekunden unberührt lassen, dann zehnmal tippen. Anschließend Testmodus
-explizit ausschalten. Acht Zahlenfelder enthalten drei µs-Schwellwerte und fünf
-Filter-/Zeitparameter; Rohwert, gefilterter Wert und bestätigter Touchkontakt
-werden getrennt angezeigt. Die Aussetzer-Toleranz ist begrenzt auf 0–30 ms;
-ungültige Messungen können keinen neuen Kontakt bestätigen. Medianfenster nur
-1/3/5/7. Änderungen werden erst nach Speicherbestätigung des Geräts übernommen.
-
-Ab Integration **0.1.13** mit Firmware **0.1.24** führt **Einstellungen → Geräte &
-Dienste → MoSwitch → Konfigurieren → Touchfläche einlernen** durch die gesamte
-Kalibrierung. Zuerst vorbereiten, dann bei losgelassener Fläche die viersekündige
-Ruhemessung bestätigen. Der Dialog zeigt den Lernfortschritt, Ablehnungsgründe
-und die vom Gerät gemeldete Restzeit. Vor dem ersten Kontakt läuft kein Zeitlimit;
-danach erneuert jeder erkannte Kontakt die 90 Sekunden Inaktivitätsfrist.
-
-Erst nach zehn gespeicherten Tipps bietet der Dialog die ausdrückliche Freigabe
-zum Schalten an. Alternativ bleibt der stille Testmodus aktiv. Schließen während
-der Mess-/Lernphase sendet Abbruch; der Testmodus bleibt auch bei Funkfehlern
-aktiv. Vor dem Start der Ruhemessung bleibt beim Schließen die stille Vorbereitung
-bestehen. Die manuellen Buttons und Parameter bleiben verfügbar, ältere
-Statusprotokolle weiterhin lesbar. Zwei zusätzliche Sensoren zeigen gezählte
-Lerntipps und die Inaktivitätsrestzeit; vor dem ersten Tipp ist die Restzeit 0
-(Frist noch nicht gestartet). Der geführte Dialog verlangt Protokoll 6, damit er
-keine falschen Versprechen über das Zeitlimit älterer Firmware macht.
-
-Ab **0.1.14** enthält jedes zugeordnete ZHA-Gerät einen internen Konfigurationslink
-zur MoSwitch-Integration mit seiner eigenen Eintrags-ID. Auf der Geräteseite über
-„Konfiguration öffnen“ / „Besuchen“ (je nach HA-Frontend auch im Gerätemenü)
-öffnen: HA hebt dort genau diesen Schalter hervor. Sein Zahnrad öffnet den
-Assistenten. Der Link öffnet keinen Optionsdialog automatisch. Auch bei mehreren
-Schaltern bleiben Zuordnung, Lernzustand und Parameter pro Eintrag getrennt.
-Dialogtitel zeigen den aktuellen Gerätenamen; benutzerdefinierte Namen haben
-Vorrang. Das ZHA-Gerät, seine Besitzer-Integration, Raumzuordnung und Entitäten
-bleiben erhalten. Beim Löschen des MoSwitch-Eintrags wird dessen eigener Link
-entfernt; beim bloßen Neuladen bleibt er verfügbar.
-
-## ACMP-Assistent mit Haltetest (0.1.15)
-
-Mit ACMP-Firmware ab0.1.35 führt **Touchfläche einlernen** durch Ruhephase,
-zehn kurze Tipps und einen zweisekündigen Halte-/Loslasstest. Nach dem zehnten
-Tipp der jeweiligen Anweisung im Dialog folgen; die Werte sind dann noch nicht
-gespeichert. Erst nach erfolgreichem Haltetest und stabilem Loslassen werden sie
-übernommen. Der Schalter bleibt still, bis er im Ergebnis ausdrücklich zum
-Schalten freigegeben wird. Der Assistent zeigt den Namen des ausgewählten
-Schalters, Ruhewert, Ruheschwankung und gelernte Abstände. Für die endgültige
-Kalibrierung Scheibe/Abdeckung montieren und die vorgesehene Versorgung nutzen.
-Bestehende Geräte mit älterer Firmware bleiben lesbar; der neue Ablauf fordert
-die passende Firmware an. Die ACMP-Kalibrierung liegt getrennt von GPIO-Werten.
-
-
 ## Dialog im Browser prüfen
 
 `tools/test_device_dialog.cjs` verwendet die nativen UI-Komponenten einer
@@ -237,46 +148,14 @@ node tools/test_device_dialog.cjs /absoluter/pfad/zu/ha-zugangsdaten.json
 
 Die Datei enthält `url` und `token`. Optional sind `BROWSER_CHANNEL` und
 `MOSWITCH_UI_OUTPUT` konfigurierbar. Die Aufzeichnungen liegen standardmäßig unter
-`dist/0.1.17/verification/`. Der Test prüft Geräte-Link, unveränderte Geräte-URL,
-Zuordnung, alle Lernphasen, Beenden im stillen Modus, ausdrückliche Freigabe,
+`dist/0.1.37/verification/`. Der Test prüft Geräte-Link, unveränderte Geräte-URL,
+Zuordnung, alle Lernphasen, Abschluss mit „Fertig“,
 Escape, Mobilansicht, Themevariablen und den Schutz vor falscher Gerätezuordnung.
 Er ersetzt keinen physischen Einlerndurchlauf.
 
-### Isolierter 24V-Test per OTA (veröffentlichter Stand0.1.20)
+## Firmwareupdates
 
-HA0.1.20 stellt für Administratoren `moswitch/firmware/install_test` und
-`moswitch/firmware/test_status` als gerätebezogene WebSocket-Befehle bereit.
-Der Upload akzeptiert ausschließlich den SHA-256-gepinnten stillen
-Firmwarekandidaten0.1.42 auf einem MoSwitch v1 mit Gerätestand0.1.41. Vor dem
-Transfer wird ein frischer stiller Diagnosezustand vom Gerät verlangt. Die
-Datei wird im RAM nur an diesen Zigpy-Geräteknoten übertragen; es gibt keine
-Registrierung als globaler OTA-Anbieter und keinen Eintrag im öffentlichen
-Update-Index. Disconnects des Upload-Clients brechen einen laufenden Transfer
-nicht ab. Status und Fehler sind pro Config-Entry abrufbar. Der Kandidat sperrt
-Aktionen dauerhaft und braucht eine eigene neue Kalibrierung.
-
-`moswitch/touch/trace` liest die komprimierte RAM-Aufzeichnung nach gestopptem
-Lernlauf im stillen Modus gerätebezogen aus. Pro Anfrage werden maximal vier
-Datensätze zurückgegeben. Offset, Snapshotgeneration und Sampleanzahl müssen
-beim Zusammenfügen konsistent sein. Das ist ein Diagnosewerkzeug; es sendet
-keine Daten pro Touch-Sample und gibt keine Schaltaktionen frei.
-
-## LED-Diagnose (ab0.1.21)
-
-Der Featurestand0.1.21 ergänzt interne Administrator-Diagnose über
-`moswitch/led/action`: status, confirm_supply, forget_supply, enable, disable,
-test, brightness0..64. Es wird keine Ring-Licht-Entity angelegt. Es gibt keinen
-automatischen Start und keine automatische Bestätigung einer Versorgung.
-`confirm_supply` ist eine Bedieneraussage über vorhandene5V_LED, keine Messung.
-`disable` bestätigt die asynchrone Schwarz-Ausgabe samt Ressourcenfreigabe.
-`forget_supply` erzwingt Daten LOW, kann aber eine weiterhin versorgte LED nicht
-per Datenframe löschen. Antworten müssen Gerät, zufälliger Nonce und Operation
-entsprechen; ein Transport-ACK allein genügt nicht.
-
-Der hier vorbereitete Upload ist ausschließlich auf den lokalen kombinierten
-Firmwarekandidaten0.1.44 aus Gerätestand0.1.42 gepinnt. Dieser enthält die aktuellen
-Touchkorrekturen, sperrt Lichtaktionen und startet die LEDs deaktiviert. Die
-Installation des Teststands erfolgt ausdrücklich; Hardwaretest mit
-laufender Animation und abschließender Touchprüfung bleiben offen.
-
-Details zu Vorbereitung und offener Hardwareabnahme: [LED-Diagnose](docs/led-preparation.md).
+Updates laufen über ZHAs vorhandene Firmware-Entität und den öffentlichen
+MoSwitch-OTA-Katalog. Private Upload-, Durchsatz-, LED- und Messaufzeichnungs-
+Endpunkte sind nicht Teil der Integration. Ältere Entwicklungsstände sind in
+den Releaseprotokollen dokumentiert.

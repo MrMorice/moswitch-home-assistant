@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const output = path.resolve(process.env.MOSWITCH_UI_OUTPUT || path.join(root, 'dist/0.1.17/verification'));
+const output = path.resolve(process.env.MOSWITCH_UI_OUTPUT || path.join(root, 'dist/0.1.37/verification'));
 fs.mkdirSync(output, { recursive: true });
 
 (async () => {
@@ -49,7 +49,7 @@ fs.mkdirSync(output, { recursive: true });
           { name: 'scene_order', selector: { entity: { include_entities: [] } } }],
         touch: { state: 3, calibrated: true, test_mode: false, baseline_us: 18, press_delta_us: 5,
           release_delta_us: 2, parameters_writable: true, tuning_writable: true },
-        fresh: true, quiet: false, health: 'Bereit für Gerätetest', message: '',
+        fresh: true, quiet: false, health: 'Bereit', message: '',
         parameters: [{ key: 'baseline_us', label: 'Baseline einstellen', min: 1, max: 1000, step: 1, unit: 'µs' }],
       };
       const subscribers = new Set();
@@ -81,7 +81,7 @@ fs.mkdirSync(output, { recursive: true });
         ? Promise.resolve({ entry_id: msg.entry_id, device_id: window.wrongDialogDevice ? 'wrong' : deviceId, name: data.name })
         : call(msg);
     }, target);
-    await page.addScriptTag({ type: 'module', url: credentials.url + '/moswitch_static/device-dialog.js?v=0.1.17' });
+    await page.addScriptTag({ type: 'module', url: credentials.url + '/moswitch_static/device-dialog.js?v=0.1.37' });
     await page.waitForFunction(() => !!customElements.get('moswitch-device-dialog'));
     const href = '/config/devices/device/' + target.deviceId + '?moswitch_settings=' + target.entryId;
     const link = page.locator('ha-device-info-card a[href*="moswitch"]').first();
@@ -110,9 +110,9 @@ fs.mkdirSync(output, { recursive: true });
       await page.evaluate(state => dialogReport({ state, learning_taps: 10, hold_remaining_ms: 1200 }), state);
       await dialog.getByRole('heading', { name: heading, exact: true }).waitFor();
     }
-    await dialog.getByRole('button', { name: 'Im stillen Testmodus bleiben' }).click();
+    await dialog.getByRole('button', { name: 'Fertig', exact:true }).click();
     await dialog.locator('moswitch-device-settings').waitFor({ state: 'detached' });
-    assert(!(await page.evaluate(() => dialogCalls)).some(call => call.action === 'activate'));
+    assert.equal((await page.evaluate(()=>dialogCalls)).filter(call=>call.action==='activate').length,1);
     await link.click();
     await dialog.getByRole('button', { name: 'Touchfläche einlernen', exact: true }).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
@@ -127,7 +127,7 @@ fs.mkdirSync(output, { recursive: true });
     await page.evaluate(href => {history.replaceState(history.state,'',href);window.dispatchEvent(new CustomEvent('location-changed'));}, href);
     await dialog.getByRole('button', {name:'Touchfläche einlernen',exact:true}).waitFor();
     assert.equal(page.url(),before);
-    await dialog.getByRole('button', {name:'Zum Schalten freigeben',exact:true}).click();
+    await page.keyboard.press('Escape');
     await dialog.locator('moswitch-device-settings').waitFor({state:'detached'});
     assert.equal((await page.evaluate(()=>dialogCalls)).filter(call=>call.action==='activate').length,1);
     await link.click();
@@ -146,6 +146,6 @@ fs.mkdirSync(output, { recursive: true });
     await page.waitForTimeout(300);
     assert.equal(await dialog.locator('moswitch-device-settings').count(), 0);
     assert.deepEqual(errors, []);
-    console.log('Device dialog: launch, unchanged URL, scoped actions, assignment, all learning phases, keep quiet, Escape, mobile and wrong-device guard passed.');
+    console.log('Device dialog: launch, unchanged URL, scoped actions, assignment, all learning phases, finish, Escape, mobile and wrong-device guard passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error.message); process.exit(1); });

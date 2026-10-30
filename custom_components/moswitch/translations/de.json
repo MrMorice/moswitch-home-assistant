@@ -80,9 +80,8 @@
     },
     "touch_finish": {
       "options": {
-        "activate": "Schalter zum Schalten freigeben",
         "retry": "Einlernen neu starten",
-        "keep_test": "Im stillen Testmodus bleiben"
+        "finish": "Fertig"
       }
     }
   },

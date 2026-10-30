@@ -250,7 +250,7 @@ async def test_commissioning_resolves_endpoint_and_commits_only_after_setup(hass
     runtime.entries = {one.entry_id: one}
     await runtime.commission(one)
     assert len(lamp_ep.add_to_group.call_args.args[1]) <= 16
-    assert runtime.health[one.entry_id] == "Bereit für Gerätetest"
+    assert runtime.health[one.entry_id] == "Bereit"
     assert send.await_count == 3
     await runtime.commission(one)
     assert send.await_count == 3  # Unchanged config does not rewrite flash every minute.
@@ -327,128 +327,6 @@ async def test_gesture_activity_records_every_kind_without_room_or_actions(hass)
     listener.cluster_command(4, 0x80, struct.pack("<IB", 4, 0))
     await hass.async_block_till_done()
     assert len(events) == 3
-
-
-@pytest.mark.asyncio
-async def test_guided_calibration_entities_reuse_selected_zha_device(hass):
-    import logging
-    import struct
-
-    from homeassistant.helpers.entity_component import EntityComponent
-    from homeassistant.loader import async_setup as setup_loader
-
-    from custom_components.moswitch import binary_sensor, button, number, sensor
-    from custom_components.moswitch import switch as touch_switch
-
-    setup_loader(hass)
-    switch = device(hass)
-    one = entry("moswitch", {"device_id": switch.id}, unique_id=IEEE)
-    hass.config_entries._entries[one.entry_id] = one
-    runtime = Runtime(hass)
-    runtime.entries = {one.entry_id: one}
-    runtime.calibrate_touch = AsyncMock()
-    runtime.cancel_touch = AsyncMock()
-    runtime.query_touch = AsyncMock()
-    one.runtime_data = runtime
-    components = []
-    all_entities = []
-    for domain, platform in [("button", button), ("sensor", sensor), ("binary_sensor", binary_sensor), ("number", number), ("switch", touch_switch)]:
-        component = EntityComponent(logging.getLogger(__name__), domain, hass)
-        component._platforms[domain].config_entry = one
-        entities = []
-        await platform.async_setup_entry(hass, one, entities.extend)
-        await component.async_add_entities(entities)
-        components.append(component)
-        all_entities.extend(entities)
-    start = next(e for e in all_entities if e.unique_id.endswith("_calibrate_touch"))
-    cancel = next(e for e in all_entities if e.unique_id.endswith("_cancel_touch"))
-    status = next(e for e in all_entities if e.unique_id.endswith("_touch_calibration"))
-    contact = next(e for e in all_entities if e.unique_id.endswith("_touch_contact"))
-    for entity in (start, cancel, status, contact):
-        assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
-    parameters = [e for e in all_entities if "_touch_parameter_" in e.unique_id]
-    measurements = [e for e in all_entities if "_touch_measurement_" in e.unique_id]
-    assert len(parameters) == 8 and len(measurements) == 10
-    for entity in [*parameters, *measurements]:
-        assert er.async_get(hass).async_get(entity.entity_id).device_id == switch.id
-    assert len(dr.async_get(hass).devices) == 1
-    await start.async_press()
-    runtime.calibrate_touch.assert_awaited_once_with(one)
-    await cancel.async_press()
-    runtime.cancel_touch.assert_awaited_once_with(one)
-    listener = GestureListener(runtime, IEEE)
-    packet = struct.pack("<BBBBIIIII", 2, 7, 1, 4, 25, 12, 8, 4, 9)
-    listener.cluster_command(1, 0x81, packet)
-    await hass.async_block_till_done()
-    state = hass.states.get(status.entity_id)
-    assert state.state == "Bitte tippen: 4/10"
-    assert state.attributes["learning_taps"] == 4
-    assert state.attributes["weakest_tap_delta_us"] == 9
-    assert all(not e.available for e in parameters)
-    threshold = next(e for e in measurements if e.key == "press_threshold_us")
-    assert threshold.native_value == 20
-    assert hass.states.get(threshold.entity_id) is None  # Debug entities are opt-in.
-    calibration_events = []
-    hass.bus.async_listen("moswitch_calibration", lambda e: calibration_events.append(e.data))
-    def report(feedback, pressed, taps, contacts, rejected, duration, version=3):
-        packet = struct.pack("<BBBBIIIII", version, 7, 1 | (2 if pressed else 0), taps, 30, 12, 8, 4, 9)
-        packet += bytes([feedback, 0, 0, 0])
-        packet += struct.pack("<IIIIIII", contacts, rejected, duration, 18, 0, 2, 12)
-        listener.cluster_command(2, 0x81, packet)
-        listener.cluster_command(2, 0x81, packet)  # Repeated report must not duplicate activity.
-    report(3, True, 4, 5, 0, 0)
-    await hass.async_block_till_done()
-    assert contact.is_on is True
-    assert "Kontakt erkannt" in hass.states.get(status.entity_id).state
-    report(4, False, 5, 5, 0, 1000)
-    await hass.async_block_till_done()
-    assert contact.is_on is False
-    assert hass.states.get(status.entity_id).state == "Tipp gezählt (5/10)"
-    report(6, False, 5, 6, 1, 2100)
-    await hass.async_block_till_done()
-    assert "länger als 2 Sekunden" in hass.states.get(status.entity_id).state
-    assert len(calibration_events) == 3
-    report(6, False, 5, 6, 1, 2100, version=4)
-    await hass.async_block_till_done()
-    assert all(e.available for e in parameters if e.key not in protocol.TUNING_FIELDS)
-    press_parameter = next(e for e in parameters if e.key == "press_delta_us")
-    assert press_parameter.native_min_value == 5 and press_parameter.native_max_value == 1987
-    from homeassistant.core import Event
-
-    from custom_components.moswitch.logbook import async_describe_events
-    descriptions = {}
-    async_describe_events(hass, lambda domain, name, cb: descriptions.update({name: (domain, cb)}))
-    domain, describe = descriptions["moswitch_calibration"]
-    assert domain == "zha"
-    assert "Tipp gezählt (5/10)" in describe(Event("moswitch_calibration", calibration_events[1]))["message"]
-    runtime.test_touch = AsyncMock()
-    runtime.baseline_touch = AsyncMock()
-    test_mode = next(e for e in all_entities if e.unique_id.endswith("_touch_test_mode"))
-    baseline_button = next(e for e in all_entities if e.unique_id.endswith("_baseline_touch"))
-    listener.cluster_command(3, 0x81, v5_packet())
-    await hass.async_block_till_done()
-    assert test_mode.available and test_mode.is_on and all(e.available for e in parameters)
-    assert not baseline_button.available
-    assert er.async_get(hass).async_get(test_mode.entity_id).device_id == switch.id
-    listener.cluster_command(4, 0x81, v5_packet(state=9, flags=29))
-    await hass.async_block_till_done()
-    assert baseline_button.available and "Ruhemessung starten" in status.native_value
-    await baseline_button.async_press()
-    runtime.baseline_touch.assert_awaited_once_with(one)
-    from homeassistant.exceptions import HomeAssistantError
-
-    with pytest.raises(HomeAssistantError):
-        await test_mode.async_turn_off()
-    runtime.test_touch.assert_not_awaited()
-    runtime.calibrate_touch.side_effect = RuntimeError("busy")
-
-    with pytest.raises(HomeAssistantError):
-        await start.async_press()
-    runtime.touch_received_at[one.entry_id] -= 121
-    assert not status.available
-    for component in components:
-        for entity in list(component.entities):
-            await component.async_remove_entity(entity.entity_id)
 
 
 @pytest.mark.asyncio
@@ -592,11 +470,10 @@ async def test_v5_controls_and_tuning_wire_format():
         calls.append((command, schema(*args).serialize()))
         return SimpleNamespace(status=foundation.Status.SUCCESS)
     dev = SimpleNamespace(endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})})
-    await protocol.diagnose_touch(dev)
     await protocol.baseline_touch(dev)
     await protocol.normal_touch(dev)
     await protocol.set_touch_tuning(dev, 20, 50, 5, 12, 100)
-    assert calls == [(0x48, b""), (0x4A, b""), (0x49, b""), (0x4B, struct.pack("<BBBBHH", 20, 50, 5, 12, 100, 0))]
+    assert calls == [(0x4A, b""), (0x49, b""), (0x4B, struct.pack("<BBBBHH", 20, 50, 5, 12, 100, 0))]
     with pytest.raises(ValueError):
         await protocol.set_touch_tuning(dev, 20, 50, 2, 12, 100)
 
@@ -618,7 +495,7 @@ async def test_quiet_guard_survives_failed_cancelled_and_successful_training(has
         runtime.touch_report(IEEE, protocol.touch_status(v5_packet(state=state, flags=29)))
         for kind in (0, 1, 2):
             await runtime.gesture(IEEE, kind)
-    await runtime.test_touch(one, False)
+    await runtime.resume_touch(one)
     await runtime.gesture(IEEE, 2)  # ACK cannot clear guard without device status.
     await hass.async_block_till_done()
     assert not events
@@ -665,21 +542,7 @@ async def test_touch_status_recovers_from_lost_query_ack_on_fresh_push(hass):
     await sensor.async_update()
     assert not sensor.available
     runtime.touch_report(IEEE, protocol.touch_status(v5_packet()))
-    assert sensor.available and sensor.native_value == "Diagnose aktiv – Aktionen gesperrt"
-
-
-@pytest.mark.asyncio
-async def test_calibration_button_exposes_actual_failure_and_does_not_claim_old_firmware():
-    from homeassistant.exceptions import HomeAssistantError
-
-    from custom_components.moswitch.button import CalibrateTouch
-
-    one = entry("moswitch", unique_id=IEEE)
-    one.runtime_data = SimpleNamespace(calibrate_touch=AsyncMock(side_effect=RuntimeError("bad ACK")))
-    with pytest.raises(HomeAssistantError, match="bad ACK") as error:
-        await CalibrateTouch(one).async_press()
-    assert "Firmware ab" not in str(error.value)
-    assert "bereits erreicht" in str(error.value)
+    assert sensor.available and sensor.native_value == "Einlernen pausiert Schaltaktionen"
 
 
 def v6_packet(state=7, contacts=0, progress=0, remaining=0, feedback=2):
@@ -794,16 +657,12 @@ async def test_touch_wizard_uses_reports_and_retains_options(hass):
     result = await flow.async_step_touch_result()
     assert 'gespeichert' in result['description_placeholders']['status']
     assert one.entry_id in runtime.touch_quiet
-    result = await flow.async_step_touch_result({'action': 'keep_test'})
-    assert result['data'] == {'double_action': 'none'}
-    assert one.entry_id in runtime.touch_quiet
-    async def activate(e, enabled):
-        assert enabled is False
+    async def activate(e):
         packet = bytearray(v7_packet(state=3, contacts=10, progress=10))
         packet[2] = 17
         runtime.touch_report(IEEE, protocol.touch_status(packet))
-    runtime.test_touch = AsyncMock(side_effect=activate)
-    result = await flow.async_step_touch_result({'action': 'activate'})
+    runtime.resume_touch = AsyncMock(side_effect=activate)
+    result = await flow.async_step_touch_result({'action': 'finish'})
     assert result['data'] == dict(one.options)
     assert one.entry_id not in runtime.touch_quiet
 
@@ -1017,53 +876,6 @@ async def test_panel_disconnect_cancels_only_owned_active_learning(hass):
 
 
 @pytest.mark.asyncio
-async def test_entity_cleanup_preserves_ids_and_user_choices_and_zha(hass):
-    from custom_components.moswitch.entity_layout import migrate_entity_layout
-
-    physical = device(hass)
-    config = panel_config(hass, physical)
-    registry = er.async_get(hass)
-    def create(suffix, platform='moswitch', owner=config.entry_id):
-        return registry.async_get_or_create('sensor', platform, f'{IEEE}_{suffix}',
-            config_entry=hass.config_entries.async_get_entry(owner), device_id=physical.id)
-    number = create('touch_parameter_baseline_us')
-    reading = create('touch_measurement_raw_us')
-    status = create('touch_calibration')
-    zha = create('firmware_update', 'zha', physical.config_entry_id)
-    user = create('touch_contact')
-    registry.async_update_entity(user.entity_id, disabled_by=er.RegistryEntryDisabler.USER)
-    migrate_entity_layout(hass, config)
-    assert registry.async_get(number.entity_id).disabled_by is None
-    assert registry.async_get(reading.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    assert registry.async_get(status.entity_id).disabled_by is None
-    assert registry.async_get(zha.entity_id).disabled_by is None
-    assert registry.async_get(user.entity_id).disabled_by is er.RegistryEntryDisabler.USER
-    registry.async_update_entity(number.entity_id, disabled_by=None)
-    migrate_entity_layout(hass, config)
-    assert registry.async_get(number.entity_id).disabled_by is None  # Respect later re-enabling.
-    assert config.data['ui_layout_version'] == 2
-
-
-@pytest.mark.asyncio
-async def test_old_controls_are_disabled_by_default_but_status_remains(hass):
-    from custom_components.moswitch.binary_sensor import TouchContact
-    from custom_components.moswitch.button import CalibrateTouch
-    from custom_components.moswitch.number import TouchParameter
-    from custom_components.moswitch.sensor import TouchMeasurement, TouchStatus
-    from custom_components.moswitch.switch import TouchTestMode
-
-    config = panel_config(hass, device(hass))
-    for item in [CalibrateTouch(config), TouchMeasurement(config, 'raw_us', 'Raw', 'µs')]:
-        assert not item.entity_registry_enabled_default
-    for item in [TouchContact(config), TouchParameter(config, 'baseline_us', 'Baseline'),
-                 TouchMeasurement(config, 'baseline_us', 'Baseline', 'µs'),
-                 TouchMeasurement(config, 'learning_taps', 'Fortschritt', None),
-                 TouchTestMode(config), TouchStatus(config)]:
-        assert item.entity_registry_enabled_default
-
-
-
-@pytest.mark.asyncio
 async def test_closed_panel_does_not_start_learning_after_query(hass):
     import inspect
     import time
@@ -1101,44 +913,18 @@ async def test_panel_activation_requires_explicit_command_and_fresh_normal_repor
     runtime.touch_status[config.entry_id] = {'state': 10, 'calibrated': True, 'test_mode': True}
     conn = SimpleNamespace(send_result=Mock(), send_error=Mock())
     hass.data[PANEL_DATA]['sessions']['s'] = {'entry': config.entry_id, 'connection': conn, 'owns': False}
-    async def normal(config, enabled):
-        assert not enabled
+    async def normal(config):
         runtime.touch_status[config.entry_id] = {'state': 3, 'calibrated': True, 'test_mode': False}
         runtime.touch_received_at[config.entry_id] = time.monotonic()
     async def query(config):
         runtime.touch_received_at[config.entry_id] = time.monotonic()
     runtime.query_touch = AsyncMock(side_effect=query)
-    runtime.test_touch = AsyncMock(side_effect=normal)
+    runtime.resume_touch = AsyncMock(side_effect=normal)
     await inspect.unwrap(ws_action)(hass, conn, {
         'id': 1, 'entry_id': config.entry_id, 'session': 's', 'action': 'activate'})
-    runtime.test_touch.assert_awaited_once_with(config, False)
+    runtime.resume_touch.assert_awaited_once_with(config)
     conn.send_error.assert_not_called()
     assert conn.send_result.call_args.args[1]['touch']['test_mode'] is False
-
-
-@pytest.mark.asyncio
-async def test_dialog_layout_restores_only_native_controls_and_respects_user_disabling(hass):
-    from homeassistant.const import EntityCategory
-
-    from custom_components.moswitch.entity_layout import migrate_entity_layout
-
-    config = panel_config(hass, device(hass))
-    hass.config_entries.async_update_entry(config, data={**config.data, 'ui_layout_version': 1})
-    registry = er.async_get(hass)
-    native = registry.async_get_or_create('number', 'moswitch', f'{IEEE}_touch_parameter_press_delta_us',
-        config_entry=config, device_id=config.data['device_id'], disabled_by=er.RegistryEntryDisabler.INTEGRATION)
-    user = registry.async_get_or_create('switch', 'moswitch', f'{IEEE}_touch_test_mode',
-        config_entry=config, device_id=config.data['device_id'], disabled_by=er.RegistryEntryDisabler.USER)
-    raw = registry.async_get_or_create('sensor', 'moswitch', f'{IEEE}_touch_measurement_raw_us',
-        config_entry=config, device_id=config.data['device_id'], disabled_by=er.RegistryEntryDisabler.INTEGRATION)
-    migrate_entity_layout(hass, config)
-    assert registry.async_get(native.entity_id).disabled_by is None
-    assert registry.async_get(user.entity_id).disabled_by is er.RegistryEntryDisabler.USER
-    assert registry.async_get(raw.entity_id).disabled_by is er.RegistryEntryDisabler.INTEGRATION
-    assert registry.async_get(raw.entity_id).entity_category is EntityCategory.DIAGNOSTIC
-    registry.async_update_entity(native.entity_id, disabled_by=er.RegistryEntryDisabler.USER)
-    migrate_entity_layout(hass, config)
-    assert registry.async_get(native.entity_id).disabled_by is er.RegistryEntryDisabler.USER
 
 
 @pytest.mark.asyncio
@@ -1178,26 +964,6 @@ async def test_dialog_info_checks_admin_and_resolves_device(hass):
         ws_info(hass, SimpleNamespace(user=SimpleNamespace(is_admin=False)), {})
     await inspect.unwrap(ws_info)(hass, conn, {'id': 2, 'entry_id': 'missing'})
     conn.send_error.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_native_test_mode_waits_for_confirmed_normal_report(hass):
-    import time
-
-    from custom_components.moswitch.switch import TouchTestMode
-
-    config = panel_config(hass, device(hass))
-    runtime = config.runtime_data
-    runtime.touch_status[config.entry_id] = {'state': 10, 'calibrated': True, 'test_mode': True}
-    async def normal(config, enabled):
-        runtime.touch_status[config.entry_id] = {'state': 3, 'calibrated': True, 'test_mode': False}
-        runtime.touch_received_at[config.entry_id] = time.monotonic()
-    runtime.test_touch = AsyncMock(side_effect=normal)
-    control = TouchTestMode(config)
-    control.hass = hass
-    await control.async_turn_off()
-    runtime.test_touch.assert_awaited_once_with(config, False)
-    assert not control.is_on
 
 
 @pytest.mark.asyncio
@@ -1262,7 +1028,7 @@ async def test_runtime_does_not_send_activation_to_permanently_locked_firmware(h
     normal = AsyncMock()
     monkeypatch.setattr(protocol, "normal_touch", normal)
     with pytest.raises(HomeAssistantError, match="dauerhaft"):
-        await runtime.test_touch(config, False)
+        await runtime.resume_touch(config)
     normal.assert_not_awaited()
     assert config.entry_id in runtime.touch_quiet
 
@@ -1301,13 +1067,13 @@ async def test_options_flow_does_not_offer_activation_for_locked_firmware(hass):
     flow = MoSwitchOptionsFlow()
     flow.hass, flow.handler = hass, config.entry_id
     flow._touch_error = None
-    runtime.test_touch = AsyncMock()
+    runtime.resume_touch = AsyncMock()
     result = await flow.async_step_touch_result()
     choices = next(iter(result["data_schema"].schema.values())).config["options"]
-    assert choices == ["retry", "keep_test"]
+    assert choices == ["retry"]
     assert "dauerhaft" in result["description_placeholders"]["status"]
-    await flow.async_step_touch_result({"action":"activate"})
-    runtime.test_touch.assert_not_awaited()
+    await flow.async_step_touch_result({"action":"finish"})
+    runtime.resume_touch.assert_not_awaited()
 
 
 def test_v9_boot_diagnostics_do_not_change_calibration():

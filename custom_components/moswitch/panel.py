@@ -17,9 +17,9 @@ from homeassistant.helpers.script import async_validate_actions_config
 from .config_flow import options_schema
 from .const import DOMAIN
 from .device_configuration import device_name
-from .number import PARAMETERS
 from .protocol import TUNING_BOUNDS, TUNING_FIELDS
 from .rooms import device_area, room_entities
+from .settings import PARAMETERS
 from .touch_wizard import COMMAND_ERRORS, confirmed_touch_command, learning_message
 
 PANEL_DATA = f"{DOMAIN}_panel"
@@ -102,9 +102,6 @@ async def async_register(hass):
         return
     from homeassistant.components import frontend, panel_custom
 
-    from .candidate_ota import register as register_candidate_ota
-    from .led_diagnostics import ws_ring
-    from .touch_trace import ws_trace
 
     hass.data[PANEL_DATA] = {"sessions": {}}
     await hass.http.async_register_static_paths([StaticPathConfig(
@@ -112,14 +109,11 @@ async def async_register(hass):
     ), StaticPathConfig(
         "/moswitch_static/device-dialog.js", str(Path(__file__).with_name("device-dialog.js")), False,
     )])
-    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.17")
+    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.37")
     await panel_custom.async_register_panel(
         hass, frontend_url_path="moswitch", webcomponent_name="moswitch-device-settings",
-        module_url="/moswitch_static/device-settings.js?v=0.1.36", require_admin=True,
+        module_url="/moswitch_static/device-settings.js?v=0.1.37", require_admin=True,
     )
-    register_candidate_ota(hass)
-    websocket_api.async_register_command(hass, ws_trace)
-    websocket_api.async_register_command(hass, ws_ring)
     for handler in (ws_subscribe, ws_action, ws_save, ws_preview, ws_info):
         websocket_api.async_register_command(hass, handler)
 
@@ -181,7 +175,7 @@ def _session(hass, connection, msg):
 
 @websocket_api.websocket_command({vol.Required("type"): "moswitch/device/action",
     vol.Required("entry_id"): str, vol.Required("session"): str,
-    vol.Required("action"): vol.In(("refresh", "prepare", "baseline", "cancel", "diagnose", "activate", "parameter")),
+    vol.Required("action"): vol.In(("refresh", "prepare", "baseline", "cancel", "activate", "parameter")),
     vol.Optional("key"): str, vol.Optional("value"): vol.All(int)})
 @websocket_api.require_admin
 @websocket_api.async_response
@@ -201,7 +195,7 @@ async def ws_action(hass, connection, msg):
             await confirmed_touch_command(hass, entry, runtime.query_touch, lambda s: True)
             status = runtime.touch_status[entry.entry_id]
             if status.get("protocol_version", 0) < 7 or not status.get("frontend_active"):
-                raise ValueError("Zum Einlernen sind eine aktive Touchmessung und Firmware ab 0.1.36 erforderlich.")
+                raise ValueError("Zum Einlernen sind eine aktive Touchmessung und Firmware ab 0.1.37 erforderlich.")
             if hass.data[PANEL_DATA]["sessions"].get(msg["session"]) is not session:
                 raise ValueError("Die Einstellungsseite wurde geschlossen.")
             session["owns"] = True
@@ -217,14 +211,13 @@ async def ws_action(hass, connection, msg):
             status = runtime.touch_status[entry.entry_id]
             if status.get("state") in ACTIVE_STATES or not status.get("calibrated"):
                 raise ValueError("Bitte das Einlernen zuerst erfolgreich abschließen.")
-            await confirmed_touch_command(hass, entry, runtime.test_touch,
-                                         lambda s: s.get("state") == 3 and not s.get("test_mode"), False)
+            await confirmed_touch_command(hass, entry, runtime.resume_touch,
+                                         lambda s: s.get("state") == 3 and not s.get("test_mode"))
             session["owns"] = False
         else:
             method, expected, args = {
                 "refresh": (runtime.query_touch, lambda s: True, ()),
                 "cancel": (runtime.cancel_touch, lambda s: s.get("state") not in ACTIVE_STATES, ()),
-                "diagnose": (runtime.test_touch, lambda s: s.get("test_mode"), (True,)),
             }[command]
             await confirmed_touch_command(hass, entry, method, expected, *args)
             if command == "cancel":

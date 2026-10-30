@@ -82,10 +82,6 @@ async def set_touch_tuning(device, *values):
     await request(device, 0x4B, TouchTuning, *values, 0)
 
 
-async def diagnose_touch(device):
-    await request(device, 0x48, Empty)
-
-
 async def normal_touch(device):
     await request(device, 0x49, Empty)
 
