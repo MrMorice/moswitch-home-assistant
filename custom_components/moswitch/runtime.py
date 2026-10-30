@@ -197,8 +197,14 @@ class Runtime:
         self.touch_quiet.add(entry.entry_id)
         await protocol.baseline_touch(self.listen_switch(entry))
 
+    def is_updating(self, entry):
+        try:
+            return bool(getattr(self.get_switch(entry), "ota_in_progress", False))
+        except (HomeAssistantError, KeyError, ValueError, RuntimeError):
+            return False
+
     async def query_touch(self, entry):
-        if getattr(self.get_switch(entry), "ota_in_progress", False):
+        if self.is_updating(entry):
             return
         await protocol.query_touch(self.listen_switch(entry))
 

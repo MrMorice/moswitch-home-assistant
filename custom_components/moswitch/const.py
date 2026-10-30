@@ -1,7 +1,7 @@
 """Shared MoSwitch integration constants."""
 
 DOMAIN = "moswitch"
-TOUCH_ACTIVATION_LOCKED = "Diese Testfirmware sperrt den Schaltbetrieb dauerhaft. Eine Firmware mit freigebbarem Schaltbetrieb ist erforderlich; die Kalibrierung bleibt gespeichert."
+TOUCH_ACTIVATION_LOCKED = "Die installierte Firmware sperrt den Schaltbetrieb dauerhaft. Eine Firmware mit freigebbarem Schaltbetrieb ist erforderlich; die Kalibrierung bleibt gespeichert."
 ENDPOINT = 10
 MANUFACTURER = 0xFFF1
 RESTORE_SCENE = 254
@@ -29,5 +29,5 @@ TOUCH_FAILURES = {
     4: "Ruhemessung zu unruhig",
     5: "ungültige Kalibrierwerte",
     6: "Zeitlimit erreicht",
-    7: "Haltetest unterbrochen",
+    7: "Gehaltene Berührung unterbrochen",
 }

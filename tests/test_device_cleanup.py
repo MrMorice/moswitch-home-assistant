@@ -88,3 +88,14 @@ async def test_status_light_settings_wait_for_matching_device_reply(hass):
         with pytest.raises(ValueError):
             await indicator_action(config, op)
     assert len(commands) == 2
+
+
+@pytest.mark.asyncio
+async def test_normal_status_reports_real_update_without_extra_device_queries(hass):
+    config = panel_config(hass, device(hass))
+    config.runtime_data.get_switch = lambda e: SimpleNamespace(ota_in_progress=True)
+    config.runtime_data.listen_switch = lambda e: pytest.fail("No polling during OTA")
+    status = TouchStatus(config)
+    assert status.available
+    assert status.native_value == "Firmwareupdate"
+    await status.async_update()

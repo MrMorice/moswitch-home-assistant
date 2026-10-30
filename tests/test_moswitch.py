@@ -988,7 +988,7 @@ def test_hold_retry_keeps_taps_and_failure_explanation_is_not_duplicated():
     assert "wiederholen" in text and "zehn Tipps bleiben erhalten" in text
     assert "gültige Messungen" in text and "noch nicht gespeichert" in text
     failed = learning_message({"state": 4, "failure_reason": 7})
-    assert failed == "Einlernen beendet: Haltetest unterbrochen. Die bisherigen Werte bleiben erhalten."
+    assert failed == "Einlernen beendet: Gehaltene Berührung unterbrochen. Die bisherigen Werte bleiben erhalten."
 
 
 def v8_packet(*, locked=False, normal=False):
