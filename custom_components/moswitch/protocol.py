@@ -184,12 +184,14 @@ def touch_status(payload):
     if version == 1:
         if len(payload) != 20 or state > 6 or progress:
             return None
-    elif version in (2, 3, 4, 5, 6, 7, 8, 9):
+    elif version in (2, 3, 4, 5, 6, 7, 8, 9, 10):
         if len(payload) != (84 if version == 9 else 76 if version >= 7 else 24 if version == 2 else 68 if version >= 5 else 56) or state > (13 if version >= 7 else 10 if version >= 5 else 8) or progress > 10:
             return None
     else:
         return None
-    if version >= 3 and (payload[24] > (11 if version >= 7 else 8) or payload[25] > (7 if version >= 7 else 6) or (payload[26:28] not in (b"\1\1", b"\2\1") if version >= 7 else payload[26:28] != b"\0\0")):
+    if version == 10 and (payload[26] not in (1, 2) or payload[27] & 15 != 1 or payload[27] >> 4 > 5):
+        return None
+    if version >= 3 and (payload[24] > (11 if version >= 7 else 8) or payload[25] > (7 if version >= 7 else 6) or (False if version == 10 else payload[26:28] not in (b"\1\1", b"\2\1") if version >= 7 else payload[26:28] != b"\0\0")):
         return None
     data = {
         "state": state,
@@ -241,6 +243,9 @@ def touch_status(payload):
         if flags & 32 and not flags & 4:
             return None
         data["actions_locked"] = bool(flags & 32)
+    if version == 10:
+        data.update(startup_check=payload[27] >> 4, startup_samples=None,
+                    startup_observed_us=data.get("filtered_us") or data.get("raw_us"))
     if version == 9:
         check, reserved, samples, observed = struct.unpack("<BBHI", payload[76:84])
         if check > 5 or reserved or observed >= 2000:

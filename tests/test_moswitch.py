@@ -1329,3 +1329,24 @@ def test_v9_boot_diagnostics_do_not_change_calibration():
         packet[0] = 9
         packet.extend(struct.pack("<BBHI",check,reserved,130,value))
         assert protocol.touch_status(packet) is None
+
+
+@pytest.mark.parametrize("check", range(6))
+def test_v10_keeps_verified_status_frame_size_and_all_diagnostics(check):
+    packet = bytearray(v8_packet())
+    packet[0] = 10
+    packet[27] = 1 | check << 4
+    assert len(packet) == 76
+    decoded = protocol.touch_status(packet)
+    assert decoded["startup_check"] == check and decoded["profile_version"] == 1
+    assert decoded["idle_noise_us"] == 1 and decoded["hold_remaining_ms"] == 0
+    assert decoded["capture_faults"] == 0
+    assert protocol.touch_status(packet + bytes(8)) is None
+
+
+def test_v10_rejects_reserved_profile_and_boot_bits():
+    for value in (0, 2, 0x61, 0x81):
+        packet = bytearray(v8_packet())
+        packet[0] = 10
+        packet[27] = value
+        assert protocol.touch_status(packet) is None
