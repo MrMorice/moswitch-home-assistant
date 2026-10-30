@@ -1,6 +1,23 @@
 {
   "firmwares": [
     {
+      "file_version": 65599,
+      "manufacturer_id": 65521,
+      "image_type": 1,
+      "manufacturer_names": [
+        "MoSwitch"
+      ],
+      "model_names": [
+        "MoSwitch v1"
+      ],
+      "file_size": 340954,
+      "checksum": "sha3-256:594e931627cf8021630f18daaedf8d90a1b2c044a755a1fbb19148881d459e79",
+      "min_current_file_version": 65598,
+      "max_current_file_version": 65598,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.63-rc1/moswitch-0.1.63.ota",
+      "release_notes": "Experimental paired RC touch candidate for target-board comparison. Requires HA integration 0.1.39 and new profile-2 calibration; the old calibration bank remains preserved. Physical verification is pending; no stable firmware qualification claimed."
+    },
+    {
       "file_version": 65598,
       "manufacturer_id": 65521,
       "image_type": 1,
