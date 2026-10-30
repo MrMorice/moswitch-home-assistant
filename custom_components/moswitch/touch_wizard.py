@@ -33,11 +33,9 @@ def learning_message(status):
         else:
             clock = (f"Noch {status.get('learning_remaining_s', 0)} Sekunden bis zum Abbruch bei Inaktivität. "
                      "Jeder erkannte Kontakt erneuert die Frist.")
-        signal = (f"Ruhewert: {status.get('learning_baseline_us', '–')} µs; "
-                  f"Ruheschwankung: {status.get('idle_noise_us', '–')} µs.")
-        return f"**{count} von 10 Tipps gezählt**\n\n{feedback}.\n\n{clock}\n\n{signal}\n\nZwischen den Tipps vollständig loslassen."
+        return f"**{count} von 10 Tipps gezählt**\n\n{feedback}.\n\n{clock}\n\nZwischen den Tipps vollständig loslassen."
     if state == 11 and status.get("feedback") == 8:
-        return ("**Haltetest bitte wiederholen – die zehn Tipps bleiben erhalten.**\n\n"
+        return ("**Halten bitte wiederholen – die zehn Tipps bleiben erhalten.**\n\n"
                 "Der Kontakt wurde unterbrochen oder es gab zu wenig gültige Messungen. "
                 "Die Fläche vollständig loslassen, dann erneut berühren und bis zur Aufforderung halten. "
                 "Die neuen Werte sind noch nicht gespeichert. Schaltaktionen bleiben gesperrt.")
@@ -45,17 +43,13 @@ def learning_message(status):
         return "**10 von 10 Tipps erfasst – noch nicht gespeichert.**\n\nZuerst kurz vollständig loslassen. Dann die Fläche einmal berühren und mindestens zwei Sekunden halten. Die LED leuchtet bei erkanntem Kontakt. Erst loslassen, wenn hier die Aufforderung erscheint."
     if state == 12:
         seconds = status.get("hold_remaining_ms", 2000) / 1000
-        return f"**Haltetest läuft: noch etwa {seconds:.1f} Sekunden.**\n\nFinger liegen lassen. Der Schalter prüft, ob der Kontakt ohne Unterbrechung erkannt wird."
+        return f"**Weiter halten: noch etwa {seconds:.1f} Sekunden.**\n\nFinger liegen lassen. Der Schalter prüft, ob der Kontakt ohne Unterbrechung erkannt wird."
     if state == 13:
-        return "**Haltetest bestanden – jetzt vollständig loslassen.**\n\nNach einer stabilen Ruhephase speichert der Schalter die neuen Werte. Schaltaktionen bleiben gesperrt."
+        return "**Kontakt erfasst – jetzt vollständig loslassen.**\n\nNach einer stabilen Ruhephase speichert der Schalter die neuen Werte. Schaltaktionen bleiben gesperrt."
     if state == 3 and status.get("actions_locked"):
         return "**Einlernen erfolgreich abgeschlossen und gespeichert.**\n\n" + TOUCH_ACTIVATION_LOCKED
     if state == 3:
-        return ("**Einlernen erfolgreich abgeschlossen und gespeichert.**\n\n"
-                f"Ruhewert: {status.get('baseline_us', '–')} µs; "
-                f"Einschaltabstand: {status.get('press_delta_us', '–')} µs; "
-                f"Loslassabstand: {status.get('release_delta_us', '–')} µs.\n\n"
-                "Du kannst den Schalter jetzt zum Schalten freigeben oder im stillen Testmodus bleiben.")
+        return "**Touchfläche eingelernt und gespeichert.**\n\nDer Schalter ist bereit."
     reason = TOUCH_FAILURES.get(status.get("failure_reason"))
     if state == 4:
         return f"Einlernen beendet: {reason or 'Kalibrierung fehlgeschlagen'}. Die bisherigen Werte bleiben erhalten."
@@ -86,7 +80,7 @@ async def confirmed_touch_command(hass, entry, method, expected, *args):
 
 
 class TouchWizard:
-    """Options-flow steps; no action is enabled without explicit confirmation."""
+    """Options-flow steps; successful learning returns to normal operation."""
 
     def _touch_placeholders(self, **extra):
         return {"device": device_name(self.hass, self.config_entry), **extra}
@@ -188,27 +182,25 @@ class TouchWizard:
 
     async def async_step_touch_result(self, user_input=None):
         status = self._touch_status()
-        success = status.get("state") == 3 and not self._touch_error
         errors = {}
         if user_input is not None:
             action = user_input["action"]
             if action == "retry":
                 return await self.async_step_touch_setup()
-            if action == "activate":
+            if action == "finish" and status.get("test_mode") and status.get("calibrated"):
                 if status.get("actions_locked"):
                     self._touch_error = TOUCH_ACTIVATION_LOCKED
                     return await self.async_step_touch_result()
                 try:
                     await self._touch_command(
-                        self._touch_runtime().test_touch,
+                        self._touch_runtime().resume_touch,
                         lambda s: not s.get("test_mode") and s.get("state") == 3,
-                        False,
                     )
                 except COMMAND_ERRORS:
                     errors["base"] = "touch_connection"
             if not errors:
                 return self.async_create_entry(title="", data=dict(self.config_entry.options))
-        choices = (["activate"] if success and not status.get("actions_locked") else []) + ["retry", "keep_test"]
+        choices = (["finish"] if not status.get("actions_locked") else []) + ["retry"]
         return self.async_show_form(
             step_id="touch_result", errors=errors,
             description_placeholders=self._touch_placeholders(status=self._touch_error or learning_message(status)),

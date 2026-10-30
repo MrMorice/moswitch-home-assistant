@@ -1,6 +1,23 @@
 {
   "firmwares": [
     {
+      "file_version": 65598,
+      "manufacturer_id": 65521,
+      "image_type": 1,
+      "manufacturer_names": [
+        "MoSwitch"
+      ],
+      "model_names": [
+        "MoSwitch v1"
+      ],
+      "file_size": 340430,
+      "checksum": "sha3-256:8ac19cfae71fb742f53ec9b35dc85a6b73c24d21744c2444f464b5e74c1846b9",
+      "min_current_file_version": 65597,
+      "max_current_file_version": 65597,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.62/moswitch-0.1.62.ota",
+      "release_notes": "Removes runtime diagnostics and test functions; retains the learned ACMP touch profile, normal startup and persistent status-light settings. Requires the verified 0.1.61 predecessor and MoSwitch MG24 OTA bootloader."
+    },
+    {
       "file_version": 65540,
       "manufacturer_id": 65521,
       "image_type": 1,

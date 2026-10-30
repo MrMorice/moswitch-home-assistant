@@ -25,10 +25,8 @@ from zigpy.zdo import types as zdo_t
 
 from . import protocol
 from .const import DOMAIN, ENDPOINT, IGNORE_LABEL, MAX_TARGETS, TOUCH_ACTIVATION_LOCKED
-from .led_diagnostics import ring_reply
-from .ota_probe import probe_reply
+from .indicator import ring_reply
 from .rooms import device_area, ieee_for_device, room_entities, scene_cycle
-from .touch_trace import trace_reply
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,14 +38,8 @@ class GestureListener:
         self.last = None
 
     def cluster_command(self, tsn, command_id, args):
-        if command_id == 0x84:
-            probe_reply(self.runtime, self.ieee, args)
-            return
         if command_id == 0x83:
             ring_reply(self.runtime, self.ieee, args)
-            return
-        if command_id == 0x82:
-            trace_reply(self.runtime, self.ieee, args)
             return
         if command_id == 0x81:
             status = protocol.touch_status(args)
@@ -78,12 +70,10 @@ class Runtime:
         self.touch_quiet = set()
         self.touch_status = {}
         self.touch_received_at = {}
-        self.ota_probe_waiters = {}
-        self.ota_active_entries = set()
+        self.indicator_status = {}
+        self.indicator_received_at = {}
         self.ring_waiters = {}
         self.ring_locks = {}
-        self.touch_trace_waiters = {}
-        self.touch_trace_locks = {}
         self.touch_parameter_locks = {}
         self.touch_parameter_waiters = {}
         self.rooms = {}
@@ -195,21 +185,20 @@ class Runtime:
         self.touch_quiet.add(entry.entry_id)
         await protocol.calibrate_touch(self.listen_switch(entry))
 
-    async def test_touch(self, entry, enabled):
+    async def resume_touch(self, entry):
         # Keep blocked on command loss; only a subsequent normal-mode report
         # clears the guard. Firmware also guards its direct Zigbee actions.
         self.touch_quiet.add(entry.entry_id)
-        if not enabled and self.touch_status.get(entry.entry_id, {}).get("actions_locked"):
+        if self.touch_status.get(entry.entry_id, {}).get("actions_locked"):
             raise HomeAssistantError(TOUCH_ACTIVATION_LOCKED)
-        method = protocol.diagnose_touch if enabled else protocol.normal_touch
-        await method(self.listen_switch(entry))
+        await protocol.normal_touch(self.listen_switch(entry))
 
     async def baseline_touch(self, entry):
         self.touch_quiet.add(entry.entry_id)
         await protocol.baseline_touch(self.listen_switch(entry))
 
     async def query_touch(self, entry):
-        if entry.entry_id in self.ota_active_entries:
+        if getattr(self.get_switch(entry), "ota_in_progress", False):
             return
         await protocol.query_touch(self.listen_switch(entry))
 
@@ -359,7 +348,7 @@ class Runtime:
             await lamp_ep.in_clusters[6].configure_reporting(0, 0, 300, 1)
         await protocol.configure(device, group, targets)
         self.signatures[entry.entry_id] = signature
-        self.set_health(entry, "Bereit für Gerätetest")
+        self.set_health(entry, "Bereit")
 
     async def options_updated(self, entry):
         area = device_area(self.hass, entry.data["device_id"])
