@@ -1,7 +1,7 @@
 """Admin-only, device-scoped installation of pinned quiet test images.
 
 No provider registration, filesystem writes, remote downloads or global OTA index.
-The allowlist contains only the locally built 0.1.53–0.1.58 test candidates;57+ verify saved profiles at boot.
+The allowlist contains only the locally built 0.1.53–0.1.60 test candidates;59+ restore LED settings at boot.
 """
 
 import asyncio
@@ -25,12 +25,14 @@ from .ota_transport import PROFILES, transfer_image
 
 _LOGGER = logging.getLogger(__name__)
 DATA = "moswitch_candidate_ota"
-VERSION = 0x0001003A
-SOURCE_VERSION = 0x00010039
-SHA256 = "059d0ace1234e57deeab3eaa0fc5bb324f19254c9b5e601a72a484afb58c2dbb"
-SIZE = 367970
+VERSION = 0x0001003C
+SOURCE_VERSION = 0x0001003B
+SHA256 = "ddef607c33073fa9f2589df6b3281d1e552869d84ac15620b0724059d8e54309"
+SIZE = 368966
 CANDIDATES = {
     VERSION: {"source": SOURCE_VERSION, "sha256": SHA256, "size": SIZE},
+    0x0001003B: {"source": 0x00010038, "sha256": "76d1e3181bf17e16645c5c860d1e853a762ab7aa506a2d911b9f27cfe86f1cec", "size": 368966},
+    0x0001003A: {"source": 0x00010039, "sha256": "059d0ace1234e57deeab3eaa0fc5bb324f19254c9b5e601a72a484afb58c2dbb", "size": 367970},
     0x00010039: {"source": 0x00010038, "sha256": "9ad75052a68680525be2a56d4afcacd104e91ffd7c7b48396f3bf6bdb83921e5", "size": 367970},
     0x00010038: {"source": 0x00010037, "sha256": "6d026566c52b55b4ef2aa475bf30421198d268ccf94ae682f822cba72695fdb9", "size": 367234},
     0x00010037: {"source": 0x00010036, "sha256": "f0df586721a521fee35ce361146f1dd3ec214992b39811f277e703ff899922a3", "size": 367202},
@@ -50,7 +52,7 @@ def decode_candidate(encoded):
     selected = next(((version, spec) for version, spec in CANDIDATES.items()
                      if len(data) == spec["size"] and digest == spec["sha256"]), None)
     if selected is None:
-        raise ValueError("Nur die festgelegten Testbuilds 0.1.53 bis 0.1.58 sind zugelassen")
+        raise ValueError("Nur die festgelegten Testbuilds 0.1.53 bis 0.1.60 sind zugelassen")
     target, spec = selected
     image, remaining = parse_ota_image(data)
     header = image.header
