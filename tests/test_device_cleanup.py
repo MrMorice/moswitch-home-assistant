@@ -99,3 +99,58 @@ async def test_normal_status_reports_real_update_without_extra_device_queries(ha
     assert status.available
     assert status.native_value == "Firmwareupdate"
     await status.async_update()
+
+
+def test_ring_health_v2_requires_exact_version_and_size():
+    base = struct.pack('<BBBBIIHBB', 2, 7, 15, 5, 3250000, 3, 77, 6, 0)
+    packet = base + struct.pack('<6I', 20000, 1, 2, 3, 0x308, 5001)
+    status = parse_ring(packet)
+    assert status['max_submit_delay_us'] == 20000
+    assert status['fault_elapsed_us'] == 5001
+    assert status['nonce'] == 77 and status['brightness'] == 15
+    assert parse_ring(base) is None
+    assert parse_ring(bytes([1]) + packet[1:]) is None
+    assert parse_ring(packet[:-1]) is None
+    assert parse_ring(packet + b'\0') is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('restart_error', [0, 5])
+async def test_status_light_can_recover_from_old_driver_fault(hass, restart_error):
+    from homeassistant.exceptions import HomeAssistantError
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    calls = []
+    async def request(_general, _id, _schema, op, value, nonce, **kwargs):
+        calls.append(op)
+        error = restart_error if op == 1 else 5
+        flags = 7 if op == 1 and not error else 1
+        ring_reply(runtime, IEEE, struct.pack('<BBBBIIHBB', 1, flags, 15, error, 3250000, 1, nonce, op, 0))
+    runtime.listen_switch = lambda e: SimpleNamespace(ieee=IEEE, endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=request)})})
+    assert (await indicator_action(config, 'status'))['error'] == 5
+    if restart_error:
+        with pytest.raises(HomeAssistantError):
+            await indicator_action(config, 'enable')
+    else:
+        status = await indicator_action(config, 'enable')
+        assert status['enabled'] and status['started'] and status['brightness'] == 15
+    assert calls == [6, 3, 1]
+    assert not runtime.ring_waiters
+
+
+@pytest.mark.asyncio
+async def test_fresh_driver_fault_keeps_restart_switch_available(hass):
+    import time
+
+    from custom_components.moswitch.switch import StatusLight
+
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    runtime.indicator_status[config.entry_id] = {'error': 5, 'enabled': False}
+    runtime.indicator_received_at[config.entry_id] = time.monotonic()
+    switch = StatusLight(config)
+    number = StatusLightBrightness(config)
+    assert switch.available and not switch.is_on and not number.available
+    runtime.indicator_received_at[config.entry_id] -= 181
+    assert not switch.available and not number.available

@@ -26,6 +26,11 @@ class StatusLight(IndicatorEntity, SwitchEntity):
         self._attr_unique_id = f"{entry.unique_id}_status_light"
 
     @property
+    def available(self):
+        # A fresh fault must still allow the user to restart the LED driver.
+        return self.status_recent
+
+    @property
     def is_on(self):
         return self.status.get("enabled")
 
