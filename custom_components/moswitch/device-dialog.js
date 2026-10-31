@@ -1,5 +1,5 @@
 /* Loaded globally by the integration, including on HA's device settings pages. */
-import './device-settings.js?v=0.1.38';
+import './device-settings.js?v=0.1.41';
 
 const DEVICE_PATH = /^\/config\/devices\/device\/([^/]+)\/?$/;
 const PARAMETER = 'moswitch_settings';

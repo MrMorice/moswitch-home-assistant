@@ -254,20 +254,27 @@ class Runtime:
             validate = protocol.valid_touch_tuning if tuning else protocol.valid_touch_parameters
             if not validate(*(values[field] for field in fields)):
                 raise ValueError("Loslassabstand muss kleiner als Einschaltabstand sein")
-            future = asyncio.get_running_loop().create_future()
-            self.touch_parameter_waiters[entry.entry_id] = (values, future)
+            await self._write_touch_values(entry, values, tuning=tuning)
+
+    async def _write_touch_values(self, entry, values, *, tuning, quiet=False):
+        future = asyncio.get_running_loop().create_future()
+        expected = {**values, **({"test_mode": True} if quiet else {})}
+        self.touch_parameter_waiters[entry.entry_id] = (expected, future)
+        fields = protocol.TUNING_FIELDS if tuning else ("baseline_us", "press_delta_us", "release_delta_us")
+        try:
+            setter = protocol.set_touch_tuning if tuning else protocol.set_touch_parameters
             try:
-                setter = protocol.set_touch_tuning if tuning else protocol.set_touch_parameters
-                await setter(
-                    self.listen_switch(entry), *(values[field] for field in fields),
-                )
-                # A command ACK alone is insufficient: require the device's
-                # report of the verified persisted tuple before showing success.
-                await asyncio.wait_for(future, timeout=10)
-            finally:
-                self.touch_parameter_waiters.pop(entry.entry_id, None)
+                await setter(self.listen_switch(entry), *(values[field] for field in fields))
+            except (ZigbeeException, TimeoutError):
+                # A matching persisted-value report is stronger evidence than
+                # a lost transport acknowledgement. Unmatched failures propagate.
                 if not future.done():
-                    future.cancel()
+                    raise
+            await asyncio.wait_for(future, timeout=10)
+        finally:
+            self.touch_parameter_waiters.pop(entry.entry_id, None)
+            if not future.done():
+                future.cancel()
 
     def get_switch(self, entry):
         ieee = ieee_for_device(self.hass, entry.data["device_id"])

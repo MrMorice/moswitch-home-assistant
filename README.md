@@ -38,7 +38,7 @@ MoSwitch direkt für dieses Gerät. Der Dialog enthält **Touchfläche** und
 
 Die endgültige Touchfläche vor dem Einlernen montieren:
 
-1. **Touchfläche einlernen** öffnen, die Fläche vollständig loslassen und
+1. **Automatisch einlernen** öffnen, die Fläche vollständig loslassen und
    **Ruhemessung starten** wählen.
 2. Etwa vier Sekunden unberührt lassen.
 3. Zehnmal kurz tippen und dazwischen vollständig loslassen.
@@ -56,9 +56,21 @@ Rohmesswert-Sensoren, einzelne Kalibrierungsbuttons und Testmodus-Regler werden
 bei der Aktualisierung aus der MoSwitch-Registrierung entfernt. Die Integration
 verändert keine fremden Entitäten, Automationen oder Geräteeinstellungen.
 
-Manuelle Touchparameter bleiben im eingeklappten Bereich **Erweiterte
-Touch-Einstellungen** verfügbar. Änderungen erfordern eine Speicherbestätigung
-des Geräts. Die Helligkeit begrenzt die LED-Ausgabe wie bisher auf 64/255;
+**Manuell abstimmen** lässt sich direkt oder während des automatischen
+Einlernens öffnen. Der automatische Lauf wird beendet; Schaltaktionen bleiben
+pausiert. Messwert, gefilterter Messwert, Kontaktzustand und absolute Schwellen
+zeigen die Rückmeldung des jeweiligen Schalters. Einstellbar sind Baseline,
+Ein-/Loslassabstand, Ein-/Loslassentprellung, Medianfilter, Aussetzer-Toleranz
+und Ruhezeit nach Loslassen. Öffnen allein speichert keine Vorschlagswerte.
+
+**Werte übernehmen** speichert alle acht Parameter mit Gerätebestätigung.
+Danach einmal vollständig loslassen und Berühren, Halten und Loslassen am Ring
+prüfen. **Zum Schalten freigeben** aktiviert die gespeicherten Werte;
+**Schließen** lässt Schaltaktionen pausiert. Nicht übernommene Eingaben
+verhindern eine Freigabe. Bei teilweise bestätigter Übertragung wird der
+betroffene Schritt angezeigt; erneut übernehmen, bevor freigegeben wird.
+Außerhalb der manuellen Abstimmung bleiben die einzelnen Parameter im Bereich
+**Erweiterte Touch-Einstellungen** verfügbar. Die Helligkeit begrenzt die LED-Ausgabe wie bisher auf 64/255;
 100 % im Einsteller entspricht dieser vorgesehenen Obergrenze.
 
 Das HACS-Paket registriert ein Frontend-Modul über HAs Extra-Module und öffnet
