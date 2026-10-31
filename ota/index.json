@@ -1,23 +1,6 @@
 {
   "firmwares": [
     {
-      "file_version": 65604,
-      "manufacturer_id": 65521,
-      "image_type": 1,
-      "manufacturer_names": [
-        "MoSwitch"
-      ],
-      "model_names": [
-        "MoSwitch v1"
-      ],
-      "file_size": 344662,
-      "checksum": "sha3-256:1d99d2948b4481cb955c9baed1f507efbe8df9c9891b5fcd606f9da1f8f38d3d",
-      "min_current_file_version": 65599,
-      "max_current_file_version": 65603,
-      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.68-rc1/moswitch-0.1.68.ota",
-      "release_notes": "Autonomous capture candidate: complete GPIO high-impedance release, bootloader DMA reservation, five touch DMA channels, hardware launch timestamp and separate touch task. Requires HA0.1.42; HA0.1.44 reads per-leg health. Physical acceptance pending."
-    },
-    {
       "file_version": 65599,
       "manufacturer_id": 65521,
       "image_type": 1,
