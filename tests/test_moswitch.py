@@ -1112,7 +1112,7 @@ def test_v10_keeps_verified_status_frame_size_and_all_diagnostics(check):
 
 
 def test_v10_rejects_reserved_profile_and_boot_bits():
-    for value in (0, 4, 0x61, 0x81):
+    for value in (0, 5, 0x61, 0x81):
         packet = bytearray(v8_packet())
         packet[0] = 10
         packet[27] = value
@@ -1139,6 +1139,39 @@ def test_v10_dma_profile_keeps_frame_and_manual_controls():
     assert status["parameters_writable"] and status["tuning_writable"]
     assert len(packet) == 76
 
+
+
+def test_slower_profile_keeps_manual_controls_and_reports_observed_lower_bound():
+    packet = bytearray(v8_packet())
+    packet[0] = 10
+    packet[27] = 0x24
+    packet[2] |= 16
+    packet[4:8] = struct.pack("<I", 1000)
+    packet[56:60] = struct.pack("<I", 1000)
+    packet[74:76] = struct.pack("<H", 32)
+    status = protocol.touch_status(packet)
+    assert status["profile_version"] == 4
+    assert status["measurement_model"] == "dma_slower_rc"
+    assert status["parameters_writable"] and status["tuning_writable"]
+    assert status["raw_us"] == 1000 and status["raw_lower_bound"]
+    assert status["filtered_us"] == 1000 and status["filtered_lower_bound"]
+    packet[4:8] = struct.pack("<I", 150)
+    packet[56:60] = struct.pack("<I", 150)
+    packet[74:76] = bytes(2)
+    status = protocol.touch_status(packet)
+    assert status["raw_us"] == 150 and not status["raw_lower_bound"]
+    assert not status["filtered_lower_bound"]
+
+
+def test_slower_profile_does_not_describe_a_technical_failure_as_a_lower_bound():
+    packet = bytearray(v8_packet())
+    packet[0] = 10
+    packet[27] = 4
+    packet[2] &= ~16
+    packet[4:8] = struct.pack("<I", 0xFFFFFFFF)
+    packet[74:76] = struct.pack("<H", 4)
+    status = protocol.touch_status(packet)
+    assert status["raw_us"] is None and not status["raw_lower_bound"]
 
 def test_read_only_acquisition_health_preserves_individual_capture_evidence():
     words = [1, 8000, 0, 20, 21, 0, 0, 0x10001, 0x10100, 0x400, 0x400, 2, 0, 1, 0, 1, 2, 0x240001]

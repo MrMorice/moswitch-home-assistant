@@ -220,8 +220,8 @@ class MoSwitchDeviceSettings extends HTMLElement {
     q('parameter-heading').textContent=manual?'Touch-Parameter':'Erweiterte Touch-Einstellungen';
     q('parameter-intro').textContent=manual?'Ändere die gewünschten Werte und übernimm sie gemeinsam. Der Schalter bestätigt die gespeicherten Einstellungen.':'Normalerweise genügt das Einlernen. Bei Bedarf kannst du die Empfindlichkeit und Filter hier anpassen. Änderungen werden erst nach Bestätigung des Schalters angezeigt.';
     if(manual)q('touch-parameters').open=true;
-    q('manual-raw').textContent=s.raw_us==null?'–':`${s.raw_us} µs`;
-    q('manual-filtered').textContent=s.filtered_us==null?'–':`${s.filtered_us} µs`;
+    q('manual-raw').textContent=s.raw_us==null?'–':`${s.raw_lower_bound?'≥ ':''}${s.raw_us} µs`;
+    q('manual-filtered').textContent=s.filtered_us==null?'–':`${s.filtered_lower_bound?'≥ ':''}${s.filtered_us} µs`;
     q('manual-contact').textContent=!s.calibrated?'Werte übernehmen':s.pressed?'Berührt':'Frei';
     q('manual-threshold').textContent=s.calibrated?`${s.baseline_us+s.press_delta_us} µs`:'–';
     q('manual-release').textContent=s.calibrated?`${s.baseline_us+s.release_delta_us} µs`:'–';

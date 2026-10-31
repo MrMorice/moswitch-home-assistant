@@ -112,10 +112,10 @@ async def async_register(hass):
     ), StaticPathConfig(
         "/moswitch_static/device-dialog.js", str(Path(__file__).with_name("device-dialog.js")), False,
     )])
-    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.41")
+    frontend.add_extra_js_url(hass, "/moswitch_static/device-dialog.js?v=0.1.49")
     await panel_custom.async_register_panel(
         hass, frontend_url_path="moswitch", webcomponent_name="moswitch-device-settings",
-        module_url="/moswitch_static/device-settings.js?v=0.1.41", require_admin=True,
+        module_url="/moswitch_static/device-settings.js?v=0.1.49", require_admin=True,
     )
     for handler in (ws_subscribe, ws_action, ws_save, ws_preview, ws_info):
         websocket_api.async_register_command(hass, handler)

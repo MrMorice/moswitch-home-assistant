@@ -185,7 +185,7 @@ def touch_status(payload):
             return None
     else:
         return None
-    if version == 10 and (payload[26] not in (1, 2) or (payload[27] & 15) not in (1, 2, 3) or payload[27] >> 4 > 5):
+    if version == 10 and (payload[26] not in (1, 2) or (payload[27] & 15) not in (1, 2, 3, 4) or payload[27] >> 4 > 5):
         return None
     if version >= 3 and (payload[24] > (11 if version >= 7 else 8) or payload[25] > (7 if version >= 7 else 6) or (False if version == 10 else payload[26:28] not in (b"\1\1", b"\2\1") if version >= 7 else payload[26:28] != b"\0\0")):
         return None
@@ -240,8 +240,11 @@ def touch_status(payload):
             return None
         data["actions_locked"] = bool(flags & 32)
     if version == 10:
-        data.update(profile_version=payload[27] & 15, measurement_model={1: "charge_rc", 2: "paired_rc", 3: "dma_paired_rc"}[payload[27] & 15], startup_check=payload[27] >> 4, startup_samples=None,
+        data.update(profile_version=payload[27] & 15, measurement_model={1: "charge_rc", 2: "paired_rc", 3: "dma_paired_rc", 4: "dma_slower_rc"}[payload[27] & 15], startup_check=payload[27] >> 4, startup_samples=None,
                     startup_observed_us=data.get("filtered_us") or data.get("raw_us"))
+        if data["profile_version"] == 4:
+            data.update(raw_lower_bound=bool(data.get("measurement_valid") and faults == 32 and data["raw_us"] == 1000),
+                        filtered_lower_bound=data.get("filtered_us") == 1000)
     if version == 9:
         check, reserved, samples, observed = struct.unpack("<BBHI", payload[76:84])
         if check > 5 or reserved or observed >= 2000:
