@@ -1,6 +1,23 @@
 {
   "firmwares": [
     {
+      "file_version": 65607,
+      "manufacturer_id": 65521,
+      "image_type": 1,
+      "manufacturer_names": [
+        "MoSwitch"
+      ],
+      "model_names": [
+        "MoSwitch v1"
+      ],
+      "file_size": 345466,
+      "checksum": "sha3-256:b28a98988b4f890ed1a6c8ef1bfd0069379ee711052de57a93c0be4d79257b1a",
+      "min_current_file_version": 65606,
+      "max_current_file_version": 65606,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.71-rc1/moswitch-0.1.71.ota",
+      "release_notes": "Candidate requiring HA0.1.49: profile4 uses the slower observed RC direction and preserves a clean >=1000us no-crossing bound; technical capture errors remain unknown. Earlier calibration banks retained; new profile needs its own calibration. Physical acceptance pending."
+    },
+    {
       "file_version": 65606,
       "manufacturer_id": 65521,
       "image_type": 1,
