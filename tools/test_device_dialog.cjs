@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '..');
 const credentials = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-const output = path.resolve(process.env.MOSWITCH_UI_OUTPUT || path.join(root, 'dist/0.1.38/verification'));
+const output = path.resolve(process.env.MOSWITCH_UI_OUTPUT || path.join(root, 'dist/0.1.41/verification'));
 fs.mkdirSync(output, { recursive: true });
 
 (async () => {
@@ -48,9 +48,18 @@ fs.mkdirSync(output, { recursive: true });
           { name: 'actions', selector: { action: {} } },
           { name: 'scene_order', selector: { entity: { include_entities: [] } } }],
         touch: { state: 3, calibrated: true, test_mode: false, baseline_us: 18, press_delta_us: 5,
-          release_delta_us: 2, parameters_writable: true, tuning_writable: true },
+          release_delta_us: 2, raw_us:18, filtered_us:18, press_debounce_ms:2, release_debounce_ms:12, filter_samples:3, gap_grace_ms:50, release_stable_ms:100, parameters_writable: true, tuning_writable: true, frontend_active:true },
         fresh: true, quiet: false, health: 'Bereit', message: '',
-        parameters: [{ key: 'baseline_us', label: 'Baseline einstellen', min: 1, max: 1000, step: 1, unit: 'µs' }],
+        parameters: [
+          ['baseline_us','Baseline einstellen',1,1000,'µs'],
+          ['press_delta_us','Abstand Einschalten',1,999,'µs'],
+          ['release_delta_us','Abstand Loslassen',1,998,'µs'],
+          ['press_debounce_ms','Entprellung Einschalten',1,100,'ms'],
+          ['release_debounce_ms','Entprellung Loslassen',1,200,'ms'],
+          ['filter_samples','Medianfilter',1,7,''],
+          ['gap_grace_ms','Aussetzer-Toleranz',0,100,'ms'],
+          ['release_stable_ms','Ruhezeit nach Loslassen',20,500,'ms'],
+        ].map(([key,label,min,max,unit])=>({key,label,min,max,unit,step:1})),
       };
       const subscribers = new Set();
       window.dialogCalls = [];
@@ -67,7 +76,15 @@ fs.mkdirSync(output, { recursive: true });
         if (msg.entry_id !== entryId) throw Error('Wrong action scope');
         if (msg.action === 'prepare') { data.touch.state = 9; data.touch.test_mode = true; data.quiet = true; }
         if (msg.action === 'baseline') data.touch.state = 2;
-        if (msg.action === 'activate') { data.touch.state = 3; data.touch.test_mode = false; data.quiet = false; }
+        if (msg.action === 'manual') {
+          data.touch.state=8; data.touch.test_mode=true; data.quiet=true; data.manual=true;
+          data.manual_values=Object.fromEntries(data.parameters.map(p=>[p.key,data.touch[p.key]]));
+        }
+        if (msg.action === 'manual_apply') {
+          Object.assign(data.touch,msg.values,{calibrated:true}); data.manual_values={...msg.values};
+        }
+        if (msg.action === 'manual_close') data.manual=false;
+        if (msg.action === 'activate') { data.manual=false; data.touch.state = 3; data.touch.test_mode = false; data.quiet = false; }
         if (msg.action === 'cancel') data.touch.state = 8;
         if (msg.type.endsWith('/save')) { data.options = msg.options; data.area_id = msg.area_id; }
         for (const cb of subscribers) cb(structuredClone(data));
@@ -81,7 +98,7 @@ fs.mkdirSync(output, { recursive: true });
         ? Promise.resolve({ entry_id: msg.entry_id, device_id: window.wrongDialogDevice ? 'wrong' : deviceId, name: data.name })
         : call(msg);
     }, target);
-    await page.addScriptTag({ type: 'module', url: credentials.url + '/moswitch_static/device-dialog.js?v=0.1.38' });
+    await page.addScriptTag({ type: 'module', url: credentials.url + '/moswitch_static/device-dialog.js?v=0.1.41' });
     await page.waitForFunction(() => !!customElements.get('moswitch-device-dialog'));
     const href = '/config/devices/device/' + target.deviceId + '?moswitch_settings=' + target.entryId;
     const link = page.locator('ha-device-info-card a[href*="moswitch"]').first();
@@ -89,7 +106,7 @@ fs.mkdirSync(output, { recursive: true });
     const before = page.url();
     await link.click();
     const dialog = page.locator('moswitch-device-dialog');
-    await dialog.getByRole('button', { name: 'Touchfläche einlernen', exact: true }).waitFor();
+    await dialog.getByRole('button', { name: 'Automatisch einlernen', exact: true }).waitFor();
     assert.equal(page.url(), before);
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(output, 'dialog-desktop.png') });
@@ -98,7 +115,7 @@ fs.mkdirSync(output, { recursive: true });
     await dialog.getByRole('button', { name: 'Zuordnung speichern' }).click();
     await dialog.getByText('Raum und Aktionen gespeichert.', { exact: true }).waitFor();
     await dialog.getByRole('tab', { name: 'Touchfläche', exact: true }).click();
-    await dialog.getByRole('button', { name: 'Touchfläche einlernen', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Automatisch einlernen', exact: true }).click();
     await dialog.getByRole('heading', { name: 'Fläche vollständig loslassen' }).waitFor();
     assert(await dialog.getByRole('tab', { name: 'Zuordnung & Aktionen' }).isDisabled());
     await dialog.getByRole('button', { name: 'Fläche ist frei · Ruhemessung starten' }).click();
@@ -114,10 +131,47 @@ fs.mkdirSync(output, { recursive: true });
     await dialog.locator('moswitch-device-settings').waitFor({ state: 'detached' });
     assert.equal((await page.evaluate(()=>dialogCalls)).filter(call=>call.action==='activate').length,1);
     await link.click();
-    await dialog.getByRole('button', { name: 'Touchfläche einlernen', exact: true }).waitFor();
+    await dialog.getByRole('button', { name: 'Automatisch einlernen', exact: true }).waitFor();
+    // Switch directly from an active automatic run to manual adjustment.
+    await dialog.getByRole('button',{name:'Automatisch einlernen',exact:true}).click();
+    await page.evaluate(()=>dialogReport({state:7,learning_taps:6}));
+    await dialog.getByRole('button',{name:'Parameter selbst einstellen',exact:true}).click();
+    await dialog.getByRole('heading',{name:'Manuell abstimmen',exact:true}).waitFor();
+    assert.equal(await dialog.locator('#p-baseline_us').isEnabled(),true);
+    assert.equal(await dialog.locator('#p-filter_samples').isEnabled(),true);
+    await dialog.locator('#p-press_delta_us').fill('7');
+    await dialog.locator('#p-release_delta_us').fill('3');
+    await dialog.locator('#p-filter_samples').fill('1');
+    assert(await dialog.getByRole('button',{name:'Zum Schalten freigeben',exact:true}).isDisabled());
+    await dialog.getByRole('button',{name:'Werte übernehmen',exact:true}).click();
+    await dialog.getByText('Werte vom Schalter bestätigt und gespeichert. Bitte einmal loslassen und anschließend prüfen.',{exact:true}).waitFor();
+    const manualCalls=(await page.evaluate(()=>dialogCalls)).filter(c=>c.action==='manual_apply');
+    assert.equal(manualCalls.length,1);
+    assert.equal(Object.keys(manualCalls[0].values).length,8);
+    assert.equal(manualCalls[0].values.press_delta_us,7);
+    assert.equal(manualCalls[0].values.filter_samples,1);
+    assert.equal((await page.evaluate(()=>dialogCalls)).filter(c=>c.action==='activate').length,1);
+    await page.evaluate(()=>dialogReport({pressed:true,raw_us:29,filtered_us:28,parameters_writable:false,tuning_writable:false}));
+    assert(await dialog.locator('#p-press_delta_us').isEnabled());
+    await dialog.locator('#manual-contact').getByText('Berührt',{exact:true}).waitFor();
+    await page.screenshot({path:path.join(output,'dialog-manual-desktop.png')});
+    await page.setViewportSize({width:390,height:844});
+    await page.screenshot({path:path.join(output,'dialog-manual-mobile.png')});
+    assert(!(await dialog.evaluate(el=>el.shadowRoot.querySelector('.body').scrollWidth>el.shadowRoot.querySelector('.body').clientWidth)));
+    await dialog.locator('#manual-close').click();
+    await dialog.locator('moswitch-device-settings').waitFor({state:'detached'});
+    assert.equal((await page.evaluate(()=>dialogCalls)).filter(c=>c.action==='activate').length,1);
+    await link.click();
+    await dialog.getByRole('button',{name:'Manuell abstimmen',exact:true}).click();
+    await page.evaluate(()=>dialogReport({pressed:false}));
+    await dialog.getByRole('button',{name:'Zum Schalten freigeben',exact:true}).click();
+    await dialog.locator('moswitch-device-settings').waitFor({state:'detached'});
+    assert.equal((await page.evaluate(()=>dialogCalls)).filter(c=>c.action==='activate').length,2);
+    await link.click();
+    await dialog.getByRole('button',{name:'Automatisch einlernen',exact:true}).waitFor();
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(400);
-    await dialog.getByRole('button',{name:'Touchfläche einlernen',exact:true}).waitFor();
+    await dialog.getByRole('button',{name:'Automatisch einlernen',exact:true}).waitFor();
     await page.screenshot({ path: path.join(output, 'dialog-mobile.png') });
     assert(!(await dialog.evaluate(el => el.shadowRoot.querySelector('.body').scrollWidth > el.shadowRoot.querySelector('.body').clientWidth)));
     await page.keyboard.press('Escape');
@@ -125,13 +179,13 @@ fs.mkdirSync(output, { recursive: true });
     assert.equal(page.url(), before);
     // A direct device link opens the same dialog and removes only its own query.
     await page.evaluate(href => {history.replaceState(history.state,'',href);window.dispatchEvent(new CustomEvent('location-changed'));}, href);
-    await dialog.getByRole('button', {name:'Touchfläche einlernen',exact:true}).waitFor();
+    await dialog.getByRole('button', {name:'Automatisch einlernen',exact:true}).waitFor();
     assert.equal(page.url(),before);
     await page.keyboard.press('Escape');
     await dialog.locator('moswitch-device-settings').waitFor({state:'detached'});
-    assert.equal((await page.evaluate(()=>dialogCalls)).filter(call=>call.action==='activate').length,1);
+    assert.equal((await page.evaluate(()=>dialogCalls)).filter(call=>call.action==='activate').length,2);
     await link.click();
-    await dialog.getByRole('button', {name:'Touchfläche einlernen',exact:true}).waitFor();
+    await dialog.getByRole('button', {name:'Automatisch einlernen',exact:true}).waitFor();
     await page.evaluate(()=>{
       const root=document.querySelector('home-assistant');
       for(const [key,value] of Object.entries({'--primary-background-color':'#111','--card-background-color':'#1c1c1c','--ha-card-background':'#1c1c1c','--ha-color-surface-default':'#1c1c1c','--primary-text-color':'#eee','--secondary-text-color':'#aaa','--secondary-background-color':'#282828','--divider-color':'#3c3c3c','--ha-dialog-surface-background':'#1c1c1c'}))root.style.setProperty(key,value);
@@ -146,6 +200,6 @@ fs.mkdirSync(output, { recursive: true });
     await page.waitForTimeout(300);
     assert.equal(await dialog.locator('moswitch-device-settings').count(), 0);
     assert.deepEqual(errors, []);
-    console.log('Device dialog: launch, unchanged URL, scoped actions, assignment, all learning phases, finish, Escape, mobile and wrong-device guard passed.');
+    console.log('Device dialog: launch, unchanged URL, scoped actions, assignment, all learning phases, manual controls, quiet apply, explicit activation, finish, Escape, mobile and wrong-device guard passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error.stack); process.exit(1); });

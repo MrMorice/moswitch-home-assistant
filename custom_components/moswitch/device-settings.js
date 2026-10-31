@@ -84,6 +84,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
       :host([dialog-view="touch"]) #room-section,:host([dialog-view="touch"]) #actions-section,:host([dialog-view="touch"]) #assignment-footer{display:none}
       :host([dialog-view="assignment"]) #touch,:host([dialog-view="assignment"]) #advanced-section{display:none}
       @media(max-width:600px){:host([dialog-view]) main{padding:16px 12px}:host([dialog-view]) section{padding:16px}}
+      .manual-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}.manual-metrics>div{padding:12px;background:var(--secondary-background-color);border-radius:8px}.manual-metrics span{display:block;color:var(--secondary-text-color);font-size:12px;margin-bottom:6px}.manual-metrics b{font-size:18px;font-weight:500}.manual [data-param]{display:none}@media(max-width:600px){.manual-metrics{grid-template-columns:1fr 1fr}}
     </style>
     <header><a id="back" aria-label="Zurück zum Gerät"><ha-icon icon="mdi:arrow-left"></ha-icon></a><span>MoSwitch · Einstellungen</span></header>
     <main><div class="intro"><div class="eyebrow">SCHALTER EINRICHTEN</div><h1 id="name">Einstellungen werden geladen …</h1><div class="meta"><span id="area-name" class="eyebrow"></span><span id="mode" class="pill"></span></div></div>
@@ -91,16 +92,27 @@ class MoSwitchDeviceSettings extends HTMLElement {
     <div id="content" hidden>
     <section id="room-section"><div class="section-head"><ha-icon icon="mdi:floor-plan"></ha-icon><div><h2>Raum & Licht</h2><p>Der Schalter steuert die Zigbee-Leuchten seines Raums.</p></div></div><div class="room"><label for="area">Raum zuordnen</label><select id="area"></select></div><p id="area-change" class="hint" hidden>Nach dem Raumwechsel Mediengeräte und Szenen neu auswählen. Eigene Aktionen bleiben erhalten.</p><div id="lights" class="lights"></div></section>
     <section id="touch"><div class="section-head"><ha-icon icon="mdi:gesture-tap"></ha-icon><div><h2>Touchfläche</h2><p id="touch-summary">Status wird geladen …</p></div></div>
-      <div id="touch-home"><p>Mit montierter Touchfläche einlernen: erst unberührt lassen, dann zehnmal kurz tippen und zum Schluss zwei Sekunden halten.</p><div class="actions"><button id="learn" class="primary">Touchfläche einlernen</button><button id="reconnect" hidden>Verbindung prüfen</button><button id="activate-home" hidden>Zum Schalten freigeben</button></div></div>
-      <div id="wizard" hidden><div class="notice">Während des Einlernens werden keine Licht-, Szenen- oder Medienaktionen ausgelöst.</div><ol class="steps"><li>Ruhe messen</li><li>10 Tipps</li><li>Halten</li><li>Fertig</li></ol><div class="stage" aria-live="polite"><div id="orb" class="orb"></div><div id="count" class="count" hidden></div><h3 id="stage-title"></h3><p id="instruction"></p><p id="feedback" class="hint"></p></div><div class="actions"><button id="baseline" class="primary" hidden>Fläche ist frei · Ruhemessung starten</button><button id="activate" class="primary" hidden>Zum Schalten freigeben</button><button id="keep" hidden>Fertig</button><button id="retry" hidden>Erneut einlernen</button><button id="cancel">Einlernen abbrechen</button></div></div>
+      <div id="touch-home"><p>Stimme die montierte Touchfläche manuell ab oder starte das automatische Einlernen mit Ruhephase, zehn Tipps und gehaltenem Kontakt.</p><div class="actions"><button id="manual" class="primary">Manuell abstimmen</button><button id="learn">Automatisch einlernen</button><button id="reconnect" hidden>Verbindung prüfen</button><button id="activate-home" hidden>Zum Schalten freigeben</button></div></div>
+      <div id="wizard" hidden><div class="notice">Während des Einlernens werden keine Licht-, Szenen- oder Medienaktionen ausgelöst.</div><ol class="steps"><li>Ruhe messen</li><li>10 Tipps</li><li>Halten</li><li>Fertig</li></ol><div class="stage" aria-live="polite"><div id="orb" class="orb"></div><div id="count" class="count" hidden></div><h3 id="stage-title"></h3><p id="instruction"></p><p id="feedback" class="hint"></p></div><div class="actions"><button id="baseline" class="primary" hidden>Fläche ist frei · Ruhemessung starten</button><button id="activate" class="primary" hidden>Zum Schalten freigeben</button><button id="keep" hidden>Fertig</button><button id="retry" hidden>Erneut einlernen</button><button id="manual-from-wizard">Parameter selbst einstellen</button><button id="cancel">Einlernen abbrechen</button></div></div>
+      <div id="manual-panel" hidden><div class="notice">Schaltaktionen sind pausiert. Passe die Parameter unten an und prüfe Berühren, Halten und Loslassen am LED-Ring.</div><h3>Manuell abstimmen</h3><div class="manual-metrics" aria-live="polite"><div><span>Messwert</span><b id="manual-raw">–</b></div><div><span>Gefiltert</span><b id="manual-filtered">–</b></div><div><span>Kontakt</span><b id="manual-contact">–</b></div><div><span>Einschalten ab</span><b id="manual-threshold">–</b></div><div><span>Loslassen bis</span><b id="manual-release">–</b></div></div><p id="manual-state" class="hint"></p><p class="hint">Nach einer Wertänderung einmal vollständig loslassen. Größerer Einschaltabstand macht die Fläche weniger empfindlich. Längere Loslassentprellung überbrückt kurze Aussetzer, kann aber schnelle Doppeltipps zusammenführen.</p><div class="actions"><button id="manual-finish" class="primary">Zum Schalten freigeben</button><button id="manual-close">Schließen</button></div></div>
     </section>
     <section id="actions-section"><div class="section-head"><ha-icon icon="mdi:tune-variant"></ha-icon><div><h2>Bedienung & Aktionen</h2><p>Einmal tippen schaltet das Licht. Doppeltippen und Halten kannst du hier zuordnen.</p></div></div><div class="gesture"><strong>Einmal tippen</strong><span>Licht im Raum ein- oder ausschalten</span></div><div class="gesture"><strong>Halten</strong><span>Durch die Szenen im Raum wechseln</span></div><div id="options" class="action-editor"></div><p class="hint">Die Szenenreihenfolge gilt für alle MoSwitch-Schalter im selben Raum.</p></section>
     <div class="footer" id="assignment-footer"><span id="unsaved"></span><button id="save" class="primary" disabled>Zuordnung speichern</button></div>
-    <section id="advanced-section"><details><summary><ha-icon icon="mdi:tune"></ha-icon>Erweiterte Touch-Einstellungen</summary><div class="body"><p class="hint">Normalerweise genügt das Einlernen. Bei Bedarf kannst du die Empfindlichkeit und Filter hier anpassen. Änderungen werden erst nach Bestätigung des Schalters angezeigt.</p><div id="parameters" class="parameters"></div></div></details></section>
+    <section id="advanced-section"><details id="touch-parameters"><summary><ha-icon icon="mdi:tune"></ha-icon><span id="parameter-heading">Erweiterte Touch-Einstellungen</span></summary><div class="body"><p id="parameter-intro" class="hint">Normalerweise genügt das Einlernen. Bei Bedarf kannst du die Empfindlichkeit und Filter hier anpassen. Änderungen werden erst nach Bestätigung des Schalters angezeigt.</p><div id="parameters" class="parameters"></div><div id="manual-save" class="actions" hidden><button id="manual-apply" class="primary">Werte übernehmen</button></div><p id="manual-save-hint" class="hint" hidden>Übernehmen speichert die Werte im Schalter. Schaltaktionen bleiben bis zur Freigabe pausiert.</p></div></details></section>
     </div></main>`;
     const q = id => this.shadowRoot.getElementById(id);
-    for (const [id,action] of [['learn','prepare'],['reconnect','refresh'],['retry','prepare'],['baseline','baseline'],['cancel','cancel'],['activate','activate'],['activate-home','activate']]) q(id).onclick = () => this._command(action);
+    for (const [id,action] of [['learn','prepare'],['manual','manual'],['manual-from-wizard','manual'],['manual-finish','activate'],['reconnect','refresh'],['retry','prepare'],['baseline','baseline'],['cancel','cancel'],['activate','activate'],['activate-home','activate']]) q(id).onclick = () => this._command(action);
     q('keep').onclick = () => { this._learning = false; this._updateTouch(); this._finished(); };
+    q('manual-close').onclick = () => this._command('manual_close');
+    q('manual-apply').onclick = () => {
+      const values={};
+      for(const parameter of this._data.parameters){
+        const input=q('p-'+parameter.key);
+        if(!input.reportValidity() || input.value==='')return;
+        values[parameter.key]=Number(input.value);
+      }
+      this._command('manual_apply',{values});
+    };
     q('area').onchange = () => this._changeArea();
     q('save').onclick = () => this._save();
 
@@ -120,7 +132,7 @@ class MoSwitchDeviceSettings extends HTMLElement {
     q('content').hidden = false;
     this._renderLights(data);
     q('parameters').innerHTML = data.parameters.map(p => `<div class="parameter"><label for="p-${esc(p.key)}">${esc(p.label)}</label><div class="row"><input id="p-${esc(p.key)}" type="number" min="${p.min}" max="${p.max}" step="${p.step}" value="${data.touch[p.key] ?? ''}"><small>${esc(p.unit)}</small><button data-param="${esc(p.key)}" aria-label="${esc(p.label)} übernehmen">Übernehmen</button></div></div>`).join('');
-    for (const input of this.shadowRoot.querySelectorAll('.parameter input')) input.oninput=()=>this._parameterDirty.add(input.id);
+    for (const input of this.shadowRoot.querySelectorAll('.parameter input')) input.oninput=()=>{this._parameterDirty.add(input.id);this._updateTouch();};
     for (const button of this.shadowRoot.querySelectorAll('[data-param]')) button.onclick = () => {
       const input = q('p-'+button.dataset.param);
       if (!input.reportValidity() || input.value === '') return;
@@ -194,13 +206,30 @@ class MoSwitchDeviceSettings extends HTMLElement {
     const d = this._data, s = d.touch, state = s.state;
     const fresh = d.fresh && Date.now()-this._updatedAt < 120000;
     const active = ACTIVE.includes(state);
-    const showing = this._learning || active;
+    const manual=Boolean(d.manual);
+    const showing = this._learning || active || manual;
     const preparing=this._busy&&this._pendingAction==='prepare'&&!active;
     q('mode').className = 'pill'+(!fresh||d.quiet?' quiet':'');
-    q('mode').innerHTML = `<i></i>${!fresh?'Keine aktuellen Messdaten':d.quiet?'Einlernen pausiert Schaltaktionen':'Schaltbetrieb aktiv'}`;
+    q('mode').innerHTML = `<i></i>${!fresh?'Keine aktuellen Messdaten':d.quiet?'Schaltaktionen pausiert':'Schaltbetrieb aktiv'}`;
     q('touch-summary').textContent = fresh && [1,3,4].includes(s.startup_check) ? 'Startprüfung · Fläche freigeben; gespeicherte Kalibrierung bleibt erhalten' : !fresh ? 'Verbindung prüfen oder Messwerte aktualisieren.' : d.quiet && s.actions_locked ? 'Firmware sperrt den Schaltbetrieb' : d.quiet ? 'Touch-Rückmeldung aktiv · Schaltaktionen gesperrt' : s.calibrated ? 'Eingelernt und zum Schalten freigegeben' : 'Touchfläche noch nicht eingelernt';
     q('touch-home').hidden = showing;
-    q('wizard').hidden = !showing;
+    q('wizard').hidden = !showing || manual;
+    q('manual-panel').hidden=!manual;
+    q('advanced-section').classList.toggle('manual',manual);
+    q('manual-save').hidden=q('manual-save-hint').hidden=!manual;
+    q('parameter-heading').textContent=manual?'Touch-Parameter':'Erweiterte Touch-Einstellungen';
+    q('parameter-intro').textContent=manual?'Ändere die gewünschten Werte und übernimm sie gemeinsam. Der Schalter bestätigt die gespeicherten Einstellungen.':'Normalerweise genügt das Einlernen. Bei Bedarf kannst du die Empfindlichkeit und Filter hier anpassen. Änderungen werden erst nach Bestätigung des Schalters angezeigt.';
+    if(manual)q('touch-parameters').open=true;
+    q('manual-raw').textContent=s.raw_us==null?'–':`${s.raw_us} µs`;
+    q('manual-filtered').textContent=s.filtered_us==null?'–':`${s.filtered_us} µs`;
+    q('manual-contact').textContent=!s.calibrated?'Werte übernehmen':s.pressed?'Berührt':'Frei';
+    q('manual-threshold').textContent=s.calibrated?`${s.baseline_us+s.press_delta_us} µs`:'–';
+    q('manual-release').textContent=s.calibrated?`${s.baseline_us+s.release_delta_us} µs`:'–';
+    q('manual-state').textContent=s.calibrated?'Gespeicherte Werte aktiv · Schaltaktionen pausiert':'Die angezeigten Startwerte zuerst übernehmen. Danach Berühren und Loslassen prüfen.';
+    q('manual-finish').disabled=this._busy||!fresh||!s.calibrated||s.actions_locked||this._parameterDirty.size>0;
+    q('manual-close').disabled=this._busy;
+    q('manual-apply').disabled=this._busy||!fresh;
+    for(const id of ['manual','manual-from-wizard'])q(id).disabled=this._busy||!fresh||!s.frontend_active;
     q('learn').disabled = this._busy;
     q('reconnect').hidden=fresh;
     q('reconnect').disabled=this._busy;
@@ -238,11 +267,17 @@ class MoSwitchDeviceSettings extends HTMLElement {
       const input=q('p-'+parameter.key);
       if (!input) continue;
       input.min=parameter.min;input.max=parameter.max;
-      input.disabled=this._busy||active||!fresh||!(parameter.key.endsWith('_us')?s.parameters_writable:s.tuning_writable);
-      if(!this._parameterDirty.has(input.id) && this.shadowRoot.activeElement!==input) input.value=s[parameter.key]??'';
+      input.disabled=this._busy||!fresh||(manual?!s.frontend_active:(active||!(parameter.key.endsWith('_us')?s.parameters_writable:s.tuning_writable)));
+      if(!this._parameterDirty.has(input.id) && this.shadowRoot.activeElement!==input) input.value=(manual?d.manual_values?.[parameter.key]:s[parameter.key])??'';
       input.parentElement.querySelector('button').disabled=input.disabled;
     }
-    this.dispatchEvent(new CustomEvent('moswitch-status',{bubbles:true,composed:true,detail:{busy:this._busy,active}}));
+    if(manual){
+      const baseline=Number(q('p-baseline_us').value),press=Number(q('p-press_delta_us').value),release=Number(q('p-release_delta_us').value);
+      q('p-baseline_us').max=Math.min(1000,1999-press);
+      q('p-press_delta_us').min=release+1;q('p-press_delta_us').max=1999-baseline;
+      q('p-release_delta_us').max=Math.max(1,press-1);
+    }
+    this.dispatchEvent(new CustomEvent('moswitch-status' ,{bubbles:true,composed:true,detail:{busy:this._busy,active}}));
   }
   async _command(action, extra={}) {
     if (this._busy) return;
@@ -257,6 +292,9 @@ class MoSwitchDeviceSettings extends HTMLElement {
       const data=await this._hass.callWS({type:'moswitch/device/action',entry_id:this._entry,session:this._session,action,...extra});
       if(generation!==this._generation)return;
       this._data=data;this._updatedAt=Date.now();
+      if(action==='manual'||action==='manual_apply'){this._learning=false;this._parameterDirty.clear();}
+      if(action==='manual_apply')this._success('Werte vom Schalter bestätigt und gespeichert. Bitte einmal loslassen und anschließend prüfen.');
+      if(action==='manual_close'){this._learning=false;this._finished();}
       if(action==='activate'){this._learning=false;this._finished();}
       if(action==='prepare')this.shadowRoot.getElementById('wizard').scrollIntoView({behavior:'smooth',block:'start'});
       if(action==='parameter') {this._parameterDirty.delete('p-'+extra.key);this._success('Parameter vom Schalter bestätigt und gespeichert.');}
