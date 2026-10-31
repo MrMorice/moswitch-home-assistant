@@ -1,6 +1,7 @@
 """Exercise room selection, protocol and actions against real HA registries."""
 
 import asyncio
+import struct
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -1137,3 +1138,33 @@ def test_v10_dma_profile_keeps_frame_and_manual_controls():
     assert status["frontend_active"] and status["measurement_model"] == "dma_paired_rc"
     assert status["parameters_writable"] and status["tuning_writable"]
     assert len(packet) == 76
+
+
+def test_read_only_acquisition_health_preserves_individual_capture_evidence():
+    words = [1, 8000, 0, 20, 21, 0, 0, 0x10001, 0x10100, 0x400, 0x400, 2, 0, 1, 0, 1, 2, 0x240001]
+    data = struct.pack("<18I", *words)
+    health = protocol.acquisition_health(data)
+    assert health["sequence"] == 8000 and health["queue_overruns"] == 0
+    assert health["rise_us"] == 20 and health["fall_us"] == 21
+    assert health["rise_counts"] == {"rising": 1, "falling": 0, "launches": 1}
+    assert health["fall_counts"] == {"rising": 0, "falling": 1, "launches": 1}
+    assert protocol.acquisition_health(data[:-1]) is None
+    words[0] = 2
+    assert protocol.acquisition_health(struct.pack("<18I", *words)) is None
+    words[0] = 1
+    words[7] = 0x50000
+    assert protocol.acquisition_health(struct.pack("<18I", *words)) is None
+
+
+@pytest.mark.asyncio
+async def test_acquisition_reply_does_not_change_touch_or_schedule_gestures(hass):
+    config = panel_config(hass, device(hass))
+    runtime = config.runtime_data
+    before = dict(runtime.touch_status)
+    listener = GestureListener(runtime, IEEE)
+    words = [1, 80, 0, 20, 20, 0, 0, 0x10001, 0x10100] + [0]*9
+    listener.cluster_command(1, 0x84, struct.pack("<18I", *words))
+    assert runtime.acquisition_status[config.entry_id]["sequence"] == 80
+    assert runtime.touch_status == before
+    listener.cluster_command(2, 0x84, b"bad")
+    assert runtime.acquisition_status[config.entry_id]["sequence"] == 80

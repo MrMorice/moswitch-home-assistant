@@ -38,6 +38,14 @@ class GestureListener:
         self.last = None
 
     def cluster_command(self, tsn, command_id, args):
+        if command_id == 0x84:
+            health = protocol.acquisition_health(args)
+            if health is not None:
+                for entry in self.runtime.entries.values():
+                    if entry.unique_id == self.ieee:
+                        self.runtime.acquisition_status[entry.entry_id] = {**health, "received_at": time.monotonic()}
+                        async_dispatcher_send(self.runtime.hass, f"{DOMAIN}_{entry.entry_id}")
+            return
         if command_id == 0x83:
             ring_reply(self.runtime, self.ieee, args)
             return
@@ -70,6 +78,7 @@ class Runtime:
         self.touch_quiet = set()
         self.touch_status = {}
         self.touch_received_at = {}
+        self.acquisition_status = {}
         self.indicator_status = {}
         self.indicator_received_at = {}
         self.ring_waiters = {}
