@@ -248,3 +248,22 @@ def touch_status(payload):
             return None
         data.update(startup_check=check, startup_samples=samples, startup_observed_us=observed)
     return data
+
+
+def acquisition_health(payload):
+    """Read-only acquisition evidence; no controls or configuration mutation."""
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) != 72:
+        return None
+    v = struct.unpack("<18I", payload)
+    if v[0] != 1:
+        return None
+    def counts(value):
+        return {"rising": value & 255, "falling": (value >> 8) & 255, "launches": (value >> 16) & 255}
+    up, down = counts(v[7]), counts(v[8])
+    if any(c["rising"] > 64 or c["falling"] > 64 or c["launches"] > 4 for c in (up, down)) or v[7] >> 24 or v[8] >> 24:
+        return None
+    return {"sequence": v[1], "queue_overruns": v[2], "rise_us": v[3], "fall_us": v[4],
+            "rise_faults": v[5], "fall_faults": v[6], "rise_counts": up, "fall_counts": down,
+            "rise_gpio_mode": v[9], "fall_gpio_mode": v[10], "rise_gpio_in": v[11], "fall_gpio_in": v[12],
+            "rise_comparator": v[13], "fall_comparator": v[14], "capture_rising_ctrl": v[15],
+            "capture_falling_ctrl": v[16], "capture_falling_cfg": v[17]}

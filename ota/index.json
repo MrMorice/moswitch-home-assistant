@@ -1,7 +1,7 @@
 {
   "firmwares": [
     {
-      "file_version": 65601,
+      "file_version": 65602,
       "manufacturer_id": 65521,
       "image_type": 1,
       "manufacturer_names": [
@@ -10,12 +10,12 @@
       "model_names": [
         "MoSwitch v1"
       ],
-      "file_size": 361806,
-      "checksum": "sha3-256:71a5fd91e7d135a2bfb930f40d6a86851b26adba79756c7f3d9aad82025cb9ee",
+      "file_size": 362866,
+      "checksum": "sha3-256:2082f239a6039c4d1b2bb120eea740bd6198f6492d75f29a662c1ad1f1eeb4c2",
       "min_current_file_version": 65599,
-      "max_current_file_version": 65599,
-      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.65-rc1/moswitch-0.1.65.ota",
-      "release_notes": "Experimental autonomous timer/LDMA capture with bounded DMA handoff and a separate FreeRTOS touch owner. Requires HA0.1.42 and new profile3 calibration. Previous profiles and ring settings are retained. Target acceptance pending."
+      "max_current_file_version": 65601,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.66-rc1/moswitch-0.1.66.ota",
+      "release_notes": "Autonomous acquisition candidate with single-edge FIFO watermark, bounded DMA handoff and read-only per-leg evidence. Requires HA0.1.42 for profile3; HA0.1.44 reads acquisition health. Target verification pending; previous profiles retained."
     },
     {
       "file_version": 65599,

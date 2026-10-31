@@ -74,7 +74,7 @@ def snapshot(hass, entry, *, area_id=None, manual_values=None):
                 for a in ar.async_get(hass).async_list_areas()], key=lambda a: a["label"]),
             "lights": lights, "options": options,
             "schema": vol.to_field_list(options_schema(hass, device_id, options, area_id=area_id), custom_serializer=cv.custom_serializer),
-            "touch": status, "fresh": received is not None and time.monotonic() - received < 120,
+            "touch": status, "acquisition": runtime.acquisition_status.get(entry.entry_id), "fresh": received is not None and time.monotonic() - received < 120,
             "quiet": entry.entry_id in runtime.touch_quiet or status.get("test_mode", False),
             "health": runtime.health.get(entry.entry_id, "Einrichtung ausstehend"),
             "message": learning_message(status), "parameters": parameters,
