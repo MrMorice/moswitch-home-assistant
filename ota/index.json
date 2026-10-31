@@ -1,7 +1,7 @@
 {
   "firmwares": [
     {
-      "file_version": 65602,
+      "file_version": 65603,
       "manufacturer_id": 65521,
       "image_type": 1,
       "manufacturer_names": [
@@ -10,12 +10,12 @@
       "model_names": [
         "MoSwitch v1"
       ],
-      "file_size": 362866,
-      "checksum": "sha3-256:2082f239a6039c4d1b2bb120eea740bd6198f6492d75f29a662c1ad1f1eeb4c2",
+      "file_size": 344566,
+      "checksum": "sha3-256:9fe21e8082acff9e838720fb515ea98d3e45da17dad1172e0138f71ed887a947",
       "min_current_file_version": 65599,
-      "max_current_file_version": 65601,
-      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.66-rc1/moswitch-0.1.66.ota",
-      "release_notes": "Autonomous acquisition candidate with single-edge FIFO watermark, bounded DMA handoff and read-only per-leg evidence. Requires HA0.1.42 for profile3; HA0.1.44 reads acquisition health. Target verification pending; previous profiles retained."
+      "max_current_file_version": 65602,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.67-rc1/moswitch-0.1.67.ota",
+      "release_notes": "Autonomous capture candidate with complete high-impedance release: GPIO disabled mode also clears DOUT to avoid an internal pull-up. Includes single-edge DMA, per-leg read-only health and separate touch task. Requires HA0.1.42; HA0.1.44 reads health. Physical acceptance pending."
     },
     {
       "file_version": 65599,
