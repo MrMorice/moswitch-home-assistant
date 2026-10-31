@@ -1,6 +1,23 @@
 {
   "firmwares": [
     {
+      "file_version": 65606,
+      "manufacturer_id": 65521,
+      "image_type": 1,
+      "manufacturer_names": [
+        "MoSwitch"
+      ],
+      "model_names": [
+        "MoSwitch v1"
+      ],
+      "file_size": 345338,
+      "checksum": "sha3-256:c537323bb4f3a0a73ebd3c16777406b8afad6c6bbc64ec232797c1e2835bf93f",
+      "min_current_file_version": 65605,
+      "max_current_file_version": 65605,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.70-rc1/moswitch-0.1.70.ota",
+      "release_notes": "Candidate requiring recovered0.1.69: couples GPIO high-impedance release and launch in one DMA chain; AF-priority consumer, larger queue and bootloader access guard. Physical OTA/hold acceptance pending."
+    },
+    {
       "file_version": 65599,
       "manufacturer_id": 65521,
       "image_type": 1,
