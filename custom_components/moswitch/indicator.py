@@ -23,14 +23,19 @@ class RingCommand(t.Struct):
 
 
 def parse_ring(payload):
-    if not isinstance(payload, (bytes, bytearray)) or len(payload) != 16:
+    if not isinstance(payload, (bytes, bytearray)) or len(payload) not in (16, 40):
         return None
-    version, flags, brightness, error, _baud, _frames, nonce, operation, result = struct.unpack("<BBBBIIHBB", payload)
-    if version != 1 or flags > 15 or brightness > 64 or operation not in OPS.values() or result > 1:
+    version, flags, brightness, error, _baud, _frames, nonce, operation, result = struct.unpack("<BBBBIIHBB", payload[:16])
+    if (version, len(payload)) not in ((1, 16), (2, 40)) or flags > 15 or brightness > 64 or operation not in OPS.values() or result > 1:
         return None
-    return {"supply_confirmed": bool(flags & 1), "enabled": bool(flags & 2),
+    status = {"supply_confirmed": bool(flags & 1), "enabled": bool(flags & 2),
             "started": bool(flags & 4), "brightness": brightness, "error": error,
             "nonce": nonce, "operation": operation, "result": result}
+    if version == 2:
+        fields = ("max_submit_delay_us", "fault_tx_status", "fault_dma_if",
+                  "fault_dma_ien", "fault_dma_state", "fault_elapsed_us")
+        status.update(zip(fields, struct.unpack("<6I", payload[16:]), strict=True))
+    return status
 
 
 def ring_reply(runtime, ieee, payload):
@@ -68,7 +73,7 @@ async def indicator_action(entry, action, value=0):
                 disable_default_response=True,
             )
             status = await asyncio.wait_for(future, 10)
-            if status["result"] or status["error"]:
+            if status["result"] or (status["error"] and operation not in (OPS["confirm_supply"], OPS["status"])):
                 raise HomeAssistantError("Statuslicht-Einstellung vom Gerät abgelehnt")
             return status
         finally:
@@ -79,7 +84,9 @@ async def indicator_action(entry, action, value=0):
     async with lock:
         # Enabling declares a powered LED rail; it does not measure its voltage.
         if action == "enable":
-            await command(OPS["confirm_supply"], 0xA5)
+            supply = await command(OPS["confirm_supply"], 0xA5)
+            if not supply["supply_confirmed"]:
+                raise HomeAssistantError("LED-Versorgung wurde nicht bestätigt")
         status = await command(OPS[action], value)
         if action == "brightness" and status["brightness"] != value:
             raise HomeAssistantError("Helligkeit wurde nicht übernommen")
@@ -104,9 +111,13 @@ class IndicatorEntity(Entity):
         return self.entry.runtime_data.indicator_status.get(self.entry.entry_id, {})
 
     @property
-    def available(self):
+    def status_recent(self):
         received = self.entry.runtime_data.indicator_received_at.get(self.entry.entry_id)
-        return received is not None and time.monotonic() - received < 180 and not self.status.get("error")
+        return received is not None and time.monotonic() - received < 180
+
+    @property
+    def available(self):
+        return self.status_recent and not self.status.get("error")
 
     async def async_added_to_hass(self):
         self.async_on_remove(async_dispatcher_connect(
