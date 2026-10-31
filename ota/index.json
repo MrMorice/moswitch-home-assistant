@@ -1,6 +1,23 @@
 {
   "firmwares": [
     {
+      "file_version": 65600,
+      "manufacturer_id": 65521,
+      "image_type": 1,
+      "manufacturer_names": [
+        "MoSwitch"
+      ],
+      "model_names": [
+        "MoSwitch v1"
+      ],
+      "file_size": 361678,
+      "checksum": "sha3-256:3b52bc26473ea3918dc4690649f26663925a076c153e059e6e8fe2c2a791a65a",
+      "min_current_file_version": 65599,
+      "max_current_file_version": 65599,
+      "binary_url": "https://github.com/MrMorice/moswitch-home-assistant/releases/download/firmware-v0.1.64-rc1/moswitch-0.1.64.ota",
+      "release_notes": "Experimental timer/LDMA autonomous acquisition and separate FreeRTOS touch owner. Requires HA0.1.42 and new profile3 calibration. Prior profile banks and ring settings are preserved. Hardware acceptance pending; no stable qualification claimed."
+    },
+    {
       "file_version": 65599,
       "manufacturer_id": 65521,
       "image_type": 1,
