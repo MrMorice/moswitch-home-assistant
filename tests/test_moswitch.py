@@ -3,7 +3,7 @@
 import asyncio
 import struct
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -14,6 +14,7 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import label_registry as lr
+from zigpy.device import Device
 from zigpy.zcl import foundation
 
 from custom_components.moswitch import protocol
@@ -22,6 +23,28 @@ from custom_components.moswitch.rooms import room_entities, scene_cycle
 from custom_components.moswitch.runtime import GestureListener, Runtime
 
 IEEE = "00:12:4b:00:01:02:03:04"
+
+
+def acknowledged_device(send, **attributes):
+    """Wire-format tests use a real Basic listener dispatch and typed ZCL ACK."""
+    actual = Device(MagicMock(), protocol.t.EUI64.convert(IEEE), 0x1234)
+    endpoint = actual.add_endpoint(10)
+    cluster = endpoint.add_input_cluster(0)
+    cluster.test_send = send
+
+    async def wire(general, command, schema, *args, **kwargs):
+        response = await cluster.test_send(general, command, schema, *args, **kwargs)
+        header = foundation.ZCLHeader.general(
+            kwargs["tsn"], foundation.GeneralCommand.Default_Response,
+            manufacturer=protocol.MANUFACTURER, direction=foundation.Direction.Server_to_Client,
+        )
+        ack = foundation.GENERAL_COMMANDS[foundation.GeneralCommand.Default_Response].schema(
+            command_id=command, status=response.status,
+        )
+        cluster.listener_event("general_command", header, ack)
+
+    cluster.request = AsyncMock(side_effect=wire)
+    return SimpleNamespace(endpoints={10: endpoint}, get_sequence=actual.get_sequence, **attributes)
 
 
 def entry(domain="zha", data=None, options=None, unique_id=None):
@@ -111,9 +134,7 @@ async def test_atomic_configuration_wire_format_and_failure():
         calls.append((command, schema(*args).serialize(), kwargs))
         return SimpleNamespace(status=foundation.Status.SUCCESS)
 
-    dev = SimpleNamespace(
-        endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})}
-    )
+    dev = acknowledged_device(send)
     targets = [protocol.Target(IEEE, 1, 0x1234)]
     await protocol.configure(dev, 0x1000, targets)
     assert [command for command, _, _ in calls] == [0x40, 0x41, 0x42]
@@ -121,7 +142,8 @@ async def test_atomic_configuration_wire_format_and_failure():
     assert calls[1][1] == bytes.fromhex("0004030201004b1200341201")
     assert all(call[2]["manufacturer"] == 0xFFF1 for call in calls)
     assert protocol.revision(4096, targets) == protocol.revision(4096, targets * 2)
-    dev.endpoints[10].in_clusters[0].request = AsyncMock(return_value=SimpleNamespace(status=1))
+    dev.endpoints[10].in_clusters[0].test_send = AsyncMock(return_value=SimpleNamespace(status=1))
+    dev.endpoints[10].in_clusters[0].request.reset_mock()
     with pytest.raises(RuntimeError):
         await protocol.configure(dev, 4096, targets)
     assert dev.endpoints[10].in_clusters[0].request.await_count == 1
@@ -209,12 +231,8 @@ async def test_commissioning_resolves_endpoint_and_commits_only_after_setup(hass
     lamp = device(hass, area, "00:12:4b:00:01:02:03:06", "Shelly")
     light = entity(hass, "light", "lamp", device_id=lamp.id)
     send = AsyncMock(return_value=SimpleNamespace(status=foundation.Status.SUCCESS))
-    basic = SimpleNamespace(request=send, add_listener=lambda listener: None)
-    switch_dev = SimpleNamespace(
-        ieee=protocol.t.EUI64.convert(IEEE),
-        model="MoSwitch v1",
-        manufacturer="MoSwitch",
-        endpoints={10: SimpleNamespace(in_clusters={0: basic})},
+    switch_dev = acknowledged_device(
+        send, ieee=protocol.t.EUI64.convert(IEEE), model="MoSwitch v1", manufacturer="MoSwitch",
     )
     onoff = SimpleNamespace(
         configure_reporting=AsyncMock(return_value={0: foundation.Status.SUCCESS})
@@ -338,17 +356,15 @@ async def test_guided_calibration_wire_commands_and_rejections():
         calls.append((command, schema(*args).serialize(), kwargs))
         return SimpleNamespace(status=foundation.Status.SUCCESS)
 
-    dev = SimpleNamespace(
-        endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})}
-    )
+    dev = acknowledged_device(send)
     await protocol.calibrate_touch(dev)
     await protocol.query_touch(dev)
     await protocol.cancel_touch(dev)
     assert [(c, payload) for c, payload, _ in calls] == [(0x44, b""), (0x45, b""), (0x46, b"")]
     assert all(kwargs["manufacturer"] == 0xFFF1 for _, _, kwargs in calls)
-    assert all(kwargs["ask_for_ack"] is True and kwargs["expect_reply"] is True
+    assert all(kwargs["ask_for_ack"] is True and kwargs["expect_reply"] is False
                and kwargs["disable_default_response"] is False for _, _, kwargs in calls)
-    dev.endpoints[10].in_clusters[0].request = AsyncMock(return_value=SimpleNamespace(status=1))
+    dev.endpoints[10].in_clusters[0].test_send = AsyncMock(return_value=SimpleNamespace(status=1))
     with pytest.raises(RuntimeError):
         await protocol.calibrate_touch(dev)
 
@@ -388,7 +404,7 @@ async def test_touch_parameters_wire_and_bounds():
     async def send(general, command, schema, *args, **kwargs):
         calls.append((command, schema(*args).serialize()))
         return SimpleNamespace(status=foundation.Status.SUCCESS)
-    dev = SimpleNamespace(endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})})
+    dev = acknowledged_device(send)
     await protocol.set_touch_parameters(dev, 13, 8, 4)
     assert calls == [(0x47, struct.pack("<III", 13, 8, 4))]
     for values in [(0, 8, 4), (1001, 8, 4), (13, 4, 4), (13, 2000, 4), (13, 8, 0), (True, 8, 4)]:
@@ -470,7 +486,7 @@ async def test_v5_controls_and_tuning_wire_format():
     async def send(general, command, schema, *args, **kwargs):
         calls.append((command, schema(*args).serialize()))
         return SimpleNamespace(status=foundation.Status.SUCCESS)
-    dev = SimpleNamespace(endpoints={10: SimpleNamespace(in_clusters={0: SimpleNamespace(request=send)})})
+    dev = acknowledged_device(send)
     await protocol.baseline_touch(dev)
     await protocol.normal_touch(dev)
     await protocol.set_touch_tuning(dev, 20, 50, 5, 12, 100)
@@ -789,10 +805,14 @@ async def test_panel_snapshot_scopes_schema_and_names_to_selected_switch(hass):
     light = entity(hass, 'light', 'sofa_light', area=area_a)
     one.runtime_data.touch_status[one.entry_id] = {'state': 3, 'calibrated': True, 'baseline_us': 18}
     one.runtime_data.touch_received_at[one.entry_id] = time.monotonic()
+    one.runtime_data.indicator_status[one.entry_id] = {"error": 5, "started": False}
+    one.runtime_data.indicator_received_at[one.entry_id] = time.monotonic()
     first = snapshot(hass, one)
     second = snapshot(hass, two)
     assert first['fresh'] and not second['fresh']
     assert first['touch']['baseline_us'] == 18 and second['touch'] == {}
+    assert first['indicator'] == {"error": 5, "started": False} and second['indicator'] is None
+    assert first['indicator_received_at'] is not None and second['indicator_received_at'] is None
     assert first['area_id'] == area_a and second['area_id'] == area_b
     assert first['lights'][0]['entity_id'] == light.entity_id
     assert player.entity_id not in json.dumps(first['schema'])

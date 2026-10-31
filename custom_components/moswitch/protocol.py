@@ -4,17 +4,39 @@ No light server is created on the switch. Acknowledged Begin/Target/Commit
 commands stage a complete configuration before replacing the active one.
 """
 
+import asyncio
 import hashlib
 import logging
 import struct
 from dataclasses import dataclass
 
 import zigpy.types as t
+from zigpy.exceptions import ZigbeeException
 from zigpy.zcl import foundation
 
 from .const import ENDPOINT, MANUFACTURER, MAX_TARGETS, RESTORE_SCENE
 
 _LOGGER = logging.getLogger(__name__)
+COMMAND_REPLY_TIMEOUT = 10
+_DEFAULT_RESPONSE = foundation.GENERAL_COMMANDS[foundation.GeneralCommand.Default_Response].schema
+
+
+class _CommandReply:
+    """Only the selected Basic cluster's matching DefaultResponse is an ACK."""
+
+    def __init__(self, command, tsn):
+        self.command = command
+        self.tsn = tsn
+        self.future = asyncio.get_running_loop().create_future()
+
+    def general_command(self, header, response):
+        if (self.future.done() or header.frame_control.is_cluster
+                or header.frame_control.direction != foundation.Direction.Server_to_Client
+                or header.command_id != foundation.GeneralCommand.Default_Response
+                or header.tsn != self.tsn or header.manufacturer not in (None, MANUFACTURER)
+                or not isinstance(response, _DEFAULT_RESPONSE) or response.command_id != self.command):
+            return
+        self.future.set_result(response)
 
 
 class Begin(t.Struct):
@@ -111,26 +133,37 @@ def revision(group: int, targets: list[Target]) -> int:
 
 
 async def request(device, command: int, schema, *args):
-    response = (
-        await device.endpoints[ENDPOINT]
-        .in_clusters[0]
-        .request(
-            False,
-            command,
-            schema,
-            *args,
-            manufacturer=MANUFACTURER,
-            expect_reply=True,
-            ask_for_ack=True,
-            disable_default_response=False,
-        )
-    )
-    status = getattr(response, "status", None)
-    if status is None and isinstance(response, (list, tuple)) and len(response) >= 2:
-        status = response[1]
-    if status != foundation.Status.SUCCESS:
-        _LOGGER.warning("MoSwitch command 0x%02x: unexpected acknowledgement %r", command, response)
-        raise RuntimeError(f"MoSwitch command 0x{command:02x} rejected: {response!r}")
+    cluster = device.endpoints[ENDPOINT].in_clusters[0]
+    reply = _CommandReply(command, device.get_sequence())
+    cluster.add_listener(reply)
+    try:
+        try:
+            # Zigpy's pending-request key has no command ID. Unsolicited0x81
+            # reports with the same TSN otherwise steal the response future.
+            # With no generic future, telemetry reaches its normal listeners.
+            await cluster.request(
+                False,
+                command,
+                schema,
+                *args,
+                manufacturer=MANUFACTURER,
+                expect_reply=False,
+                ask_for_ack=True,
+                disable_default_response=False,
+                tsn=reply.tsn,
+            )
+        except ZigbeeException:
+            # A real ZCL reply is stronger evidence than a missing APS ACK.
+            if not reply.future.done():
+                raise
+        response = await asyncio.wait_for(reply.future, COMMAND_REPLY_TIMEOUT)
+        if response.status != foundation.Status.SUCCESS:
+            _LOGGER.warning("MoSwitch command 0x%02x rejected: %r", command, response)
+            raise RuntimeError(f"MoSwitch command 0x{command:02x} rejected: {response!r}")
+    finally:
+        cluster.remove_listener(reply)
+        if not reply.future.done():
+            reply.future.cancel()
 
 
 async def configure(device, group: int, targets: list[Target]) -> int:
